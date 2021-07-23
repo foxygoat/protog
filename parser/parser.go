@@ -138,7 +138,7 @@ type EnumValue struct {
 	Pos lexer.Position
 
 	Key   string `@Ident`
-	Value int    `"=" @( [ "-" ] Int )`
+	Value int32  `"=" @( [ "-" ] Int )`
 
 	Options []*Option `[ "[" @@ { "," @@ } "]" ]`
 }
@@ -193,7 +193,7 @@ type Direct struct {
 
 	Type *Type  `@@`
 	Name string `@Ident`
-	Tag  int    `"=" @Int`
+	Tag  int32  `"=" @Int`
 
 	Options []*Option `[ "[" @@ { "," @@ } "]" ]`
 }
