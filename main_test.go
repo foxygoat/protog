@@ -3,35 +3,38 @@ package main
 import (
 	"os"
 	"path"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
+// TestGolden generates output for all testdata/*.proto files, comparing
+// against the golden files for the specified formats.
 func TestGolden(t *testing.T) {
-	tests := map[string]struct {
-		name   string
-		format string
-	}{
-		"001-json": {name: "001", format: "json"},
-		"001-pb":   {name: "001", format: "pb"},
-	}
+	formats := []string{"json", "pb"}
+	protos, err := filepath.Glob("testdata/*.proto")
+	require.NoError(t, err)
 
-	for name, tc := range tests {
-		tc := tc
-		t.Run(name, func(t *testing.T) {
-			in := "testdata/" + tc.name + ".proto"
-			expected := "testdata/" + tc.name + "-protoc." + tc.format
-			out := path.Join(t.TempDir(), tc.name+"-protog."+tc.format)
-			// on failure, for file comparison uncomment
-			// out = path.Join(testdata, tc.name + "-protog." + tc.format)
+	for _, proto := range protos {
+		for _, format := range formats {
+			name := strings.TrimSuffix(filepath.Base(proto), ".proto")
+			testName := name + "-" + format
+			t.Run(testName, func(t *testing.T) {
+				in := "testdata/" + name + ".proto"
+				expected := "testdata/" + name + "-protoc." + format
+				out := path.Join(t.TempDir(), name+"-protog."+format)
+				// on failure, for file comparison uncomment
+				out = path.Join("testdata", name+"-protog."+format)
 
-			c := &cli{Filename: in, Out: out, Format: tc.format}
+				c := &cli{Filename: in, Out: out, Format: format}
 
-			require.NoError(t, c.AfterApply())
-			require.NoError(t, run(c))
-			requireContentEq(t, expected, out, tc.format)
-		})
+				require.NoError(t, c.AfterApply())
+				require.NoError(t, run(c))
+				requireContentEq(t, expected, out, format)
+			})
+		}
 	}
 }
 

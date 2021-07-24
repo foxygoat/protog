@@ -78,6 +78,7 @@ func writeFDS(out io.Writer, fds *pb.FileDescriptorSet, format string) error {
 	case "json":
 		marshaler := protojson.MarshalOptions{Multiline: true}
 		b, err = marshaler.Marshal(fds)
+		b = append(b, '\n')
 	case "pb":
 		b, err = proto.Marshal(fds)
 	default:
@@ -152,7 +153,11 @@ func message(pm *parser.Message) (*pb.DescriptorProto, error) {
 		case e.Reserved != nil:
 		case e.Extensions != nil:
 		case e.Field != nil:
-			dp.Field = append(dp.Field, field(e.Field))
+			df, err := field(e.Field)
+			if err != nil {
+				return nil, err
+			}
+			dp.Field = append(dp.Field, df)
 		default:
 			return nil, errors.New("cannot interpret MessageEntry")
 		}
@@ -161,18 +166,48 @@ func message(pm *parser.Message) (*pb.DescriptorProto, error) {
 	return dp, nil
 }
 
-func field(pf *parser.Field) *pb.FieldDescriptorProto {
+var scalars = map[parser.Scalar]pb.FieldDescriptorProto_Type{
+	parser.Double:   pb.FieldDescriptorProto_TYPE_DOUBLE,
+	parser.Float:    pb.FieldDescriptorProto_TYPE_FLOAT,
+	parser.Int32:    pb.FieldDescriptorProto_TYPE_INT32,
+	parser.Int64:    pb.FieldDescriptorProto_TYPE_INT64,
+	parser.Uint32:   pb.FieldDescriptorProto_TYPE_UINT32,
+	parser.Uint64:   pb.FieldDescriptorProto_TYPE_UINT64,
+	parser.Sint32:   pb.FieldDescriptorProto_TYPE_SINT32,
+	parser.Sint64:   pb.FieldDescriptorProto_TYPE_SINT64,
+	parser.Fixed32:  pb.FieldDescriptorProto_TYPE_FIXED32,
+	parser.Fixed64:  pb.FieldDescriptorProto_TYPE_FIXED64,
+	parser.SFixed32: pb.FieldDescriptorProto_TYPE_SFIXED32,
+	parser.SFixed64: pb.FieldDescriptorProto_TYPE_SFIXED64,
+	parser.Bool:     pb.FieldDescriptorProto_TYPE_BOOL,
+	parser.String:   pb.FieldDescriptorProto_TYPE_STRING,
+	parser.Bytes:    pb.FieldDescriptorProto_TYPE_BYTES,
+}
+
+func field(pf *parser.Field) (*pb.FieldDescriptorProto, error) {
 	df := &pb.FieldDescriptorProto{}
 	label := pb.FieldDescriptorProto_LABEL_OPTIONAL
-	fieldType := pb.FieldDescriptorProto_TYPE_STRING
-	if pf.Direct != nil {
-		df.Name = &pf.Direct.Name
-		df.Number = &pf.Direct.Tag
-		df.JsonName = jsonStr(pf.Direct.Name)
-		df.Type = &fieldType
-		df.Label = &label
+
+	if pf.Direct == nil {
+		return nil, errors.New("non-direct not implemented")
 	}
-	return df
+	if pf.Direct.Type.Scalar == parser.None {
+		return nil, errors.New("non-scalar not implemented")
+	}
+
+	fieldType, ok := scalars[pf.Direct.Type.Scalar]
+	// ignoring maps and reference right now
+	if !ok {
+		return nil, fmt.Errorf("unknown scalar type: %d", pf.Direct.Type.Scalar)
+	}
+
+	df.Name = &pf.Direct.Name
+	df.Number = &pf.Direct.Tag
+	df.JsonName = jsonStr(pf.Direct.Name)
+	df.Type = &fieldType
+	df.Label = &label
+
+	return df, nil
 }
 
 //todo very incomplete

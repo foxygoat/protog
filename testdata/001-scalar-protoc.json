@@ -1,0 +1,120 @@
+{
+  "file": [
+    {
+      "name": "testdata/001-scalar.proto",
+      "messageType": [
+        {
+          "name": "TestMessageScalar",
+          "field": [
+            {
+              "name": "a_double",
+              "number": 1,
+              "label": "LABEL_OPTIONAL",
+              "type": "TYPE_DOUBLE",
+              "jsonName": "aDouble"
+            },
+            {
+              "name": "a_float",
+              "number": 2,
+              "label": "LABEL_OPTIONAL",
+              "type": "TYPE_FLOAT",
+              "jsonName": "aFloat"
+            },
+            {
+              "name": "a_int32",
+              "number": 3,
+              "label": "LABEL_OPTIONAL",
+              "type": "TYPE_INT32",
+              "jsonName": "aInt32"
+            },
+            {
+              "name": "a_int64",
+              "number": 4,
+              "label": "LABEL_OPTIONAL",
+              "type": "TYPE_INT64",
+              "jsonName": "aInt64"
+            },
+            {
+              "name": "a_uint32",
+              "number": 5,
+              "label": "LABEL_OPTIONAL",
+              "type": "TYPE_UINT32",
+              "jsonName": "aUint32"
+            },
+            {
+              "name": "a_uint64",
+              "number": 6,
+              "label": "LABEL_OPTIONAL",
+              "type": "TYPE_UINT64",
+              "jsonName": "aUint64"
+            },
+            {
+              "name": "a_sint32",
+              "number": 7,
+              "label": "LABEL_OPTIONAL",
+              "type": "TYPE_SINT32",
+              "jsonName": "aSint32"
+            },
+            {
+              "name": "a_sint64",
+              "number": 8,
+              "label": "LABEL_OPTIONAL",
+              "type": "TYPE_SINT64",
+              "jsonName": "aSint64"
+            },
+            {
+              "name": "a_fixed32",
+              "number": 9,
+              "label": "LABEL_OPTIONAL",
+              "type": "TYPE_FIXED32",
+              "jsonName": "aFixed32"
+            },
+            {
+              "name": "a_fixed64",
+              "number": 10,
+              "label": "LABEL_OPTIONAL",
+              "type": "TYPE_FIXED64",
+              "jsonName": "aFixed64"
+            },
+            {
+              "name": "a_sfixed32",
+              "number": 11,
+              "label": "LABEL_OPTIONAL",
+              "type": "TYPE_SFIXED32",
+              "jsonName": "aSfixed32"
+            },
+            {
+              "name": "a_sfixed64",
+              "number": 12,
+              "label": "LABEL_OPTIONAL",
+              "type": "TYPE_SFIXED64",
+              "jsonName": "aSfixed64"
+            },
+            {
+              "name": "a_bool",
+              "number": 13,
+              "label": "LABEL_OPTIONAL",
+              "type": "TYPE_BOOL",
+              "jsonName": "aBool"
+            },
+            {
+              "name": "a_string",
+              "number": 14,
+              "label": "LABEL_OPTIONAL",
+              "type": "TYPE_STRING",
+              "jsonName": "aString"
+            },
+            {
+              "name": "a_bytes",
+              "number": 15,
+              "label": "LABEL_OPTIONAL",
+              "type": "TYPE_BYTES",
+              "jsonName": "aBytes"
+            }
+          ]
+        }
+      ],
+      "syntax": "proto3"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+message TestMessageScalar {
+  double a_double = 1;
+  float a_float = 2;
+  int32 a_int32 = 3;
+  int64 a_int64 = 4;
+  uint32 a_uint32 = 5;
+  uint64 a_uint64 = 6;
+  sint32 a_sint32 = 7;
+  sint64 a_sint64 = 8;
+  fixed32 a_fixed32 = 9;
+  fixed64 a_fixed64 = 10;
+  sfixed32 a_sfixed32 = 11;
+  sfixed64 a_sfixed64 = 12;
+  bool a_bool = 13;
+  string a_string = 14;
+  bytes a_bytes = 15;
+}

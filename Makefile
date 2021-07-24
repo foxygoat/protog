@@ -40,15 +40,20 @@ check-coverage: test  ## Check that test coverage meets the required level
 cover: test  ## Show test coverage in your browser
 	go tool cover -html=$(COVERFILE)
 
-check-testdata: tools
-	protoc -o testdata/001-protoc.pb testdata/001.proto
-	reflect fdsf testdata/001-protoc.pb -f json -o testdata/001-protoc.json
+gen-pb = protoc -o $(1:%.proto=%-protoc.pb) $(1)
+gen-json = reflect fdsf $(1:%.proto=%-protoc.pb) -f json -o $(1:%.proto=%-protoc.json)
+gen-testdata = $(call gen-pb,$(1))$(nl)$(call gen-json,$(1))$(nl)
+
+gen-testdata: tools
+	$(foreach proto,$(wildcard testdata/*.proto),$(call gen-testdata,$(proto)))
+
+check-testdata: gen-testdata
 	test -z "$$(git status --porcelain testdata)"
 
 CHECK_COVERAGE = awk -F '[ \t%]+' '/^total:/ {print; if ($$3 < $(COVERAGE)) exit 1}'
 FAIL_COVERAGE = { echo '$(COLOUR_RED)FAIL - Coverage below $(COVERAGE)%$(COLOUR_NORMAL)'; exit 1; }
 
-.PHONY: check-coverage check-testdata cover test
+.PHONY: check-coverage check-testdata cover gen-testdata test
 
 # --- Lint ---------------------------------------------------------------------
 
@@ -83,3 +88,8 @@ $(O):
 	@mkdir -p $@
 
 .PHONY: help
+
+define nl
+
+
+endef
