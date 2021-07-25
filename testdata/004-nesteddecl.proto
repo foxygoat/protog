@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+message Circle {
+  message Coord {
+    double x = 1;
+    double y = 2;
+  }
+  .Circle.Coord centre = 1; // TODO Coord centre - protog produces bad type name
+  double radius = 2;
+}

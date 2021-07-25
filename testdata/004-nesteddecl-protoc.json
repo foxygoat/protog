@@ -1,0 +1,51 @@
+{
+  "file": [
+    {
+      "name": "testdata/004-nesteddecl.proto",
+      "messageType": [
+        {
+          "name": "Circle",
+          "field": [
+            {
+              "name": "centre",
+              "number": 1,
+              "label": "LABEL_OPTIONAL",
+              "type": "TYPE_MESSAGE",
+              "typeName": ".Circle.Coord",
+              "jsonName": "centre"
+            },
+            {
+              "name": "radius",
+              "number": 2,
+              "label": "LABEL_OPTIONAL",
+              "type": "TYPE_DOUBLE",
+              "jsonName": "radius"
+            }
+          ],
+          "nestedType": [
+            {
+              "name": "Coord",
+              "field": [
+                {
+                  "name": "x",
+                  "number": 1,
+                  "label": "LABEL_OPTIONAL",
+                  "type": "TYPE_DOUBLE",
+                  "jsonName": "x"
+                },
+                {
+                  "name": "y",
+                  "number": 2,
+                  "label": "LABEL_OPTIONAL",
+                  "type": "TYPE_DOUBLE",
+                  "jsonName": "y"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "syntax": "proto3"
+    }
+  ]
+}

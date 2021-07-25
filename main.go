@@ -220,6 +220,11 @@ func message(pm *parser.Message) (*pb.DescriptorProto, error) {
 			dp.EnumType = append(dp.EnumType, et)
 		case e.Option != nil:
 		case e.Message != nil:
+			m, err := message(e.Message)
+			if err != nil {
+				return nil, err
+			}
+			dp.NestedType = append(dp.NestedType, m)
 		case e.Oneof != nil:
 		case e.Extend != nil:
 		case e.Reserved != nil:
@@ -282,7 +287,7 @@ func field(pf *parser.Field) (*pb.FieldDescriptorProto, error) {
 		return nil, errors.New("non-scalar or reference not implemented")
 	}
 	fieldType, ok := scalars[pf.Direct.Type.Scalar]
-	// ignoring maps and reference right now
+	// ignoring maps right now
 	if !ok {
 		return nil, fmt.Errorf("unknown scalar type: %d", pf.Direct.Type.Scalar)
 	}
