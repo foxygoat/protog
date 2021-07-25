@@ -41,7 +41,7 @@ cover: test  ## Show test coverage in your browser
 	go tool cover -html=$(COVERFILE)
 
 gen-pb = protoc -o $(1:%.proto=%-protoc.pb) $(1)
-gen-json = reflect fdsf $(1:%.proto=%-protoc.pb) -f json -o $(1:%.proto=%-protoc.json)
+gen-json = reflect fdsf $(1:%.proto=%-protoc.pb) -f json | jq . > $(1:%.proto=%-protoc.json)
 gen-testdata = $(call gen-pb,$(1))$(nl)$(call gen-json,$(1))$(nl)
 
 gen-testdata: tools
