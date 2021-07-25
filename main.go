@@ -157,12 +157,44 @@ func enum(pe *parser.Enum) (*pb.EnumDescriptorProto, error) {
 			}
 			e.Value = append(e.Value, ev)
 		case pev.Option != nil: // TODO
-		case pev.Reserved != nil: // TODO
+		case pev.Reserved != nil:
+			reservedRanges, reservedNames, err := reserved(pev.Reserved)
+			if err != nil {
+				return nil, err
+			}
+			e.ReservedRange = append(e.ReservedRange, reservedRanges...)
+			e.ReservedName = append(e.ReservedName, reservedNames...)
 		default:
 			return nil, errors.New("cannot interpret EnumEntry")
 		}
 	}
 	return e, nil
+}
+
+func reserved(pr *parser.Reserved) ([]*pb.EnumDescriptorProto_EnumReservedRange, []string, error) {
+	var reservedRanges []*pb.EnumDescriptorProto_EnumReservedRange
+	var reservedNames []string
+	for _, r := range pr.Reserved {
+		if r.Ident != "" {
+			reservedNames = append(reservedNames, r.Ident)
+			continue
+		}
+		start := r.Start
+		er := &pb.EnumDescriptorProto_EnumReservedRange{
+			Start: &start,
+			End:   &start,
+		}
+		if r.End != nil {
+			end := *r.End
+			er.End = &end
+		}
+		if r.Max {
+			var end int32 = 2147483647 // tested with protoc 🤷‍♀️
+			er.End = &end
+		}
+		reservedRanges = append(reservedRanges, er)
+	}
+	return reservedRanges, reservedNames, nil
 }
 
 func enumValue(pev *parser.EnumValue) (*pb.EnumValueDescriptorProto, error) {

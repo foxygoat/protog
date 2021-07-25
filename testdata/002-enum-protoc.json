@@ -43,6 +43,42 @@
               "number": 2
             }
           ]
+        },
+        {
+          "name": "Days",
+          "value": [
+            {
+              "name": "MONDAY",
+              "number": 0
+            },
+            {
+              "name": "TUESDAY",
+              "number": 1
+            }
+          ],
+          "reservedRange": [
+            {
+              "start": 15,
+              "end": 15
+            },
+            {
+              "start": 9,
+              "end": 11
+            },
+            {
+              "start": 40,
+              "end": 2147483647
+            },
+            {
+              "start": 16,
+              "end": 16
+            }
+          ],
+          "reservedName": [
+            "SATURDAY",
+            "SUNDAY",
+            "MAYDAY"
+          ]
         }
       ],
       "syntax": "proto3"

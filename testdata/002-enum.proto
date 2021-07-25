@@ -13,3 +13,12 @@ message ColorMessage {
     GREEN = 2;
   }
 }
+
+enum Days {
+  MONDAY = 0;
+  TUESDAY = 1;
+  reserved 15, 9 to 11, 40 to max;
+  reserved 16;
+  reserved "SATURDAY", "SUNDAY";
+  reserved "MAYDAY";
+}

@@ -82,8 +82,8 @@ type Reserved struct {
 
 type Range struct {
 	Ident string `  @String`
-	Start int    `| ( @Int`
-	End   *int   `  [ "to" ( @Int`
+	Start int32  `| ( @Int`
+	End   *int32 `  [ "to" ( @Int`
 	Max   bool   `           | @"max" ) ] )`
 }
 
