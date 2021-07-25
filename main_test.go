@@ -26,7 +26,7 @@ func TestGolden(t *testing.T) {
 				expected := "testdata/" + name + "-protoc." + format
 				out := path.Join(t.TempDir(), name+"-protog."+format)
 				// on failure, for file comparison uncomment
-				out = path.Join("testdata", name+"-protog."+format)
+				// out = path.Join("testdata", name+"-protog."+format)
 
 				c := &cli{Filename: in, Out: out, Format: format}
 
