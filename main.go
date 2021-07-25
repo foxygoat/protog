@@ -127,8 +127,13 @@ func protoToFD(pp *parser.Proto) (*pb.FileDescriptorProto, error) {
 				return nil, err
 			}
 			fd.MessageType = append(fd.MessageType, m)
-		case e.Service != nil:
 		case e.Enum != nil:
+			e, err := enum(e.Enum)
+			if err != nil {
+				return nil, err
+			}
+			fd.EnumType = append(fd.EnumType, e)
+		case e.Service != nil:
 		case e.Option != nil:
 		case e.Extend != nil:
 		default:
@@ -137,6 +142,36 @@ func protoToFD(pp *parser.Proto) (*pb.FileDescriptorProto, error) {
 	}
 
 	return fd, nil
+}
+
+func enum(pe *parser.Enum) (*pb.EnumDescriptorProto, error) {
+	e := &pb.EnumDescriptorProto{
+		Name: &pe.Name,
+	}
+	for _, pev := range pe.Values {
+		switch {
+		case pev.Value != nil:
+			ev, err := enumValue(pev.Value)
+			if err != nil {
+				return nil, err
+			}
+			e.Value = append(e.Value, ev)
+		case pev.Option != nil: // TODO
+		case pev.Reserved != nil: // TODO
+		default:
+			return nil, errors.New("cannot interpret EnumEntry")
+		}
+	}
+	return e, nil
+}
+
+func enumValue(pev *parser.EnumValue) (*pb.EnumValueDescriptorProto, error) {
+	e := &pb.EnumValueDescriptorProto{
+		Name:    &pev.Key,
+		Number:  &pev.Value,
+		Options: nil, // TODO
+	}
+	return e, nil
 }
 
 func message(pm *parser.Message) (*pb.DescriptorProto, error) {

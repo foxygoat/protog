@@ -1,0 +1,27 @@
+{
+  "file": [
+    {
+      "name": "testdata/002-enum.proto",
+      "enumType": [
+        {
+          "name": "Color",
+          "value": [
+            {
+              "name": "RED",
+              "number": 0
+            },
+            {
+              "name": "BLUE",
+              "number": 1
+            },
+            {
+              "name": "GREEN",
+              "number": 2
+            }
+          ]
+        }
+      ],
+      "syntax": "proto3"
+    }
+  ]
+}
