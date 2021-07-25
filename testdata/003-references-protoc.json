@@ -1,0 +1,68 @@
+{
+  "file": [
+    {
+      "name": "testdata/003-references.proto",
+      "messageType": [
+        {
+          "name": "Coord",
+          "field": [
+            {
+              "name": "x",
+              "number": 1,
+              "label": "LABEL_OPTIONAL",
+              "type": "TYPE_DOUBLE",
+              "jsonName": "x"
+            },
+            {
+              "name": "y",
+              "number": 2,
+              "label": "LABEL_OPTIONAL",
+              "type": "TYPE_DOUBLE",
+              "jsonName": "y"
+            }
+          ]
+        },
+        {
+          "name": "Circle",
+          "field": [
+            {
+              "name": "centre",
+              "number": 1,
+              "label": "LABEL_OPTIONAL",
+              "type": "TYPE_MESSAGE",
+              "typeName": ".Coord",
+              "jsonName": "centre"
+            },
+            {
+              "name": "radius",
+              "number": 2,
+              "label": "LABEL_OPTIONAL",
+              "type": "TYPE_DOUBLE",
+              "jsonName": "radius"
+            }
+          ]
+        }
+      ],
+      "enumType": [
+        {
+          "name": "Color",
+          "value": [
+            {
+              "name": "RED",
+              "number": 0
+            },
+            {
+              "name": "BLUE",
+              "number": 1
+            },
+            {
+              "name": "GREEN",
+              "number": 2
+            }
+          ]
+        }
+      ],
+      "syntax": "proto3"
+    }
+  ]
+}

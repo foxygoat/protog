@@ -258,26 +258,35 @@ var scalars = map[parser.Scalar]pb.FieldDescriptorProto_Type{
 
 func field(pf *parser.Field) (*pb.FieldDescriptorProto, error) {
 	df := &pb.FieldDescriptorProto{}
-	label := pb.FieldDescriptorProto_LABEL_OPTIONAL
+	label := pb.FieldDescriptorProto_LABEL_OPTIONAL // TODO
 
 	if pf.Direct == nil {
 		return nil, errors.New("non-direct not implemented")
-	}
-	if pf.Direct.Type.Scalar == parser.None {
-		return nil, errors.New("non-scalar not implemented")
-	}
-
-	fieldType, ok := scalars[pf.Direct.Type.Scalar]
-	// ignoring maps and reference right now
-	if !ok {
-		return nil, fmt.Errorf("unknown scalar type: %d", pf.Direct.Type.Scalar)
 	}
 
 	df.Name = &pf.Direct.Name
 	df.Number = &pf.Direct.Tag
 	df.JsonName = jsonStr(pf.Direct.Name)
-	df.Type = &fieldType
 	df.Label = &label
+	if pf.Direct.Type.Reference != nil {
+		df.TypeName = pf.Direct.Type.Reference
+		// TODO:
+		// need to work out the type of the reference:
+		// enum or message???
+		t := pb.FieldDescriptorProto_TYPE_MESSAGE
+		df.Type = &t
+		return df, nil
+	}
+
+	if pf.Direct.Type.Scalar == parser.None {
+		return nil, errors.New("non-scalar or reference not implemented")
+	}
+	fieldType, ok := scalars[pf.Direct.Type.Scalar]
+	// ignoring maps and reference right now
+	if !ok {
+		return nil, fmt.Errorf("unknown scalar type: %d", pf.Direct.Type.Scalar)
+	}
+	df.Type = &fieldType
 
 	return df, nil
 }
