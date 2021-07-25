@@ -93,3 +93,6 @@ define nl
 
 
 endef
+ifndef ACTIVE_HERMIT
+$(eval $(subst \n,$(nl),$(shell bin/hermit env -r | sed 's/^\(.*\)$$/export \1\\n/')))
+endif
