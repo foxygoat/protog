@@ -5,3 +5,11 @@ enum Color {
   BLUE = 1;
   GREEN = 2;
 }
+
+message ColorMessage {
+  enum Color {
+    RED = 0;
+    BLUE = 1;
+    GREEN = 2;
+  }
+}

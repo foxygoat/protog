@@ -2,6 +2,30 @@
   "file": [
     {
       "name": "testdata/002-enum.proto",
+      "messageType": [
+        {
+          "name": "ColorMessage",
+          "enumType": [
+            {
+              "name": "Color",
+              "value": [
+                {
+                  "name": "RED",
+                  "number": 0
+                },
+                {
+                  "name": "BLUE",
+                  "number": 1
+                },
+                {
+                  "name": "GREEN",
+                  "number": 2
+                }
+              ]
+            }
+          ]
+        }
+      ],
       "enumType": [
         {
           "name": "Color",

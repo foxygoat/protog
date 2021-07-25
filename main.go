@@ -181,6 +181,11 @@ func message(pm *parser.Message) (*pb.DescriptorProto, error) {
 	for _, e := range pm.Entries {
 		switch {
 		case e.Enum != nil:
+			et, err := enum(e.Enum)
+			if err != nil {
+				return nil, err
+			}
+			dp.EnumType = append(dp.EnumType, et)
 		case e.Option != nil:
 		case e.Message != nil:
 		case e.Oneof != nil:
