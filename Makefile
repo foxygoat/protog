@@ -96,3 +96,11 @@ endef
 ifndef ACTIVE_HERMIT
 $(eval $(subst \n,$(nl),$(shell bin/hermit env -r | sed 's/^\(.*\)$$/export \1\\n/')))
 endif
+
+# Ensure make version is gnu make 3.82 or higher
+ifeq ($(filter undefine,$(value .FEATURES)),)
+$(error Unsupported Make version. \
+	$(nl)Use GNU Make 3.82 or higher (current: $(MAKE_VERSION)). \
+	$(nl)Activate 🐚 hermit with `. bin/activate-hermit` and run again \
+	$(nl)or use `bin/make`)
+endif
