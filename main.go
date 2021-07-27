@@ -262,11 +262,24 @@ var scalars = map[parser.Scalar]pb.FieldDescriptorProto_Type{
 }
 
 func field(pf *parser.Field) (*pb.FieldDescriptorProto, error) {
-	df := &pb.FieldDescriptorProto{}
-	label := pb.FieldDescriptorProto_LABEL_OPTIONAL // TODO
-
 	if pf.Direct == nil {
 		return nil, errors.New("non-direct not implemented")
+	}
+	if pf.Direct.Type.Map != nil {
+		return nil, errors.New("map types not implemented")
+	}
+
+	df := &pb.FieldDescriptorProto{}
+	var label pb.FieldDescriptorProto_Label
+	// TODO: if proto2, a label is necessary.
+	if pf.Required {
+		// TODO: return error in proto3. required not valid.
+		label = pb.FieldDescriptorProto_LABEL_REQUIRED
+	} else if pf.Repeated {
+		label = pb.FieldDescriptorProto_LABEL_REPEATED
+	} else {
+		// TODO: Add proto3 optional. Dont have syntax here now.
+		label = pb.FieldDescriptorProto_LABEL_OPTIONAL
 	}
 
 	df.Name = &pf.Direct.Name
@@ -274,20 +287,15 @@ func field(pf *parser.Field) (*pb.FieldDescriptorProto, error) {
 	df.JsonName = jsonStr(pf.Direct.Name)
 	df.Label = &label
 	if pf.Direct.Type.Reference != nil {
-		df.TypeName = pf.Direct.Type.Reference
-		// TODO:
-		// need to work out the type of the reference:
-		// enum or message???
+		// TODO: Determine if enum or message reference.
+		// TODO: Resolve relative references
 		t := pb.FieldDescriptorProto_TYPE_MESSAGE
 		df.Type = &t
+		df.TypeName = pf.Direct.Type.Reference
 		return df, nil
 	}
 
-	if pf.Direct.Type.Scalar == parser.None {
-		return nil, errors.New("non-scalar or reference not implemented")
-	}
 	fieldType, ok := scalars[pf.Direct.Type.Scalar]
-	// ignoring maps right now
 	if !ok {
 		return nil, fmt.Errorf("unknown scalar type: %d", pf.Direct.Type.Scalar)
 	}
