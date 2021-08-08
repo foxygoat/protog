@@ -2,7 +2,7 @@
 
 # --- Global -------------------------------------------------------------------
 O = out
-COVERAGE = 0
+COVERAGE = 90
 VERSION ?= $(shell git describe --tags --dirty  --always)
 REPO_ROOT = $(shell git rev-parse --show-toplevel)
 
@@ -10,7 +10,7 @@ all: build test check-coverage lint  ## build, test, check coverage and lint
 	@if [ -e .git/rebase-merge ]; then git --no-pager log -1 --pretty='%h %s'; fi
 	@echo '$(COLOUR_GREEN)Success$(COLOUR_NORMAL)'
 
-ci: clean check-testdata all  ## Full clean build and up-to-date checks as run on CI
+ci: clean check-uptodate all  ## Full clean build and up-to-date checks as run on CI
 
 clean::  ## Remove generated files
 	-rm -rf $(O)
@@ -47,13 +47,13 @@ gen-testdata = $(call gen-pb,$(1))$(nl)$(call gen-json,$(1))$(nl)
 gen-testdata: tools
 	$(foreach proto,$(wildcard testdata/*.proto),$(call gen-testdata,$(proto)))
 
-check-testdata: gen-testdata
-	test -z "$$(git status --porcelain testdata)"
+check-uptodate: gen-testdata protos
+	test -z "$$(git status --porcelain)"
 
 CHECK_COVERAGE = awk -F '[ \t%]+' '/^total:/ {print; if ($$3 < $(COVERAGE)) exit 1}'
 FAIL_COVERAGE = { echo '$(COLOUR_RED)FAIL - Coverage below $(COVERAGE)%$(COLOUR_NORMAL)'; exit 1; }
 
-.PHONY: check-coverage check-testdata cover test
+.PHONY: check-coverage check-uptodate cover test
 
 # --- Lint ---------------------------------------------------------------------
 
@@ -61,6 +61,14 @@ lint:  ## Lint go source code
 	golangci-lint run
 
 .PHONY: lint
+
+# --- Protos ---------------------------------------------------------------------
+
+protos:
+	protoc --go_out=. --go_opt=module=foxygo.at/protog httprule/internal/test.proto
+	goimports -w .
+
+.PHONY: protos
 
 # --- Release -------------------------------------------------------------------
 NEXTTAG := $(shell { git tag --list --merged HEAD --sort=-v:refname; echo v0.0.0; } | grep -E "^v?[0-9]+.[0-9]+.[0-9]+$$" | head -n1 | awk -F . '{ print $$1 "." $$2 "." $$3 + 1 }')
@@ -82,6 +90,8 @@ help:
 	@awk -F ':.*## ' 'NF == 2 && $$1 ~ /^[A-Za-z0-9%_-]+$$/ { printf "$(COLOUR_WHITE)%-25s$(COLOUR_NORMAL)%s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
 
 tools:
+	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.25.0
+	go install golang.org/x/tools/cmd/goimports@v0.1.5
 	go install github.com/juliaogris/reflect@v0.0.22
 
 $(O):
