@@ -164,14 +164,22 @@ func jsonBody(bodyField string, msg proto.Message, skip map[string]bool) (io.Rea
 // repeated or message types. See:
 // https://github.com/googleapis/googleapis/blob/master/google/api/http.proto
 //
-// Only basic substitutions via {field_name} of top-level fields are supported.
-// The extended syntax for `*` and `**` substitutions is not implemented.
-// Nested field values are not supported (e.g. {msg_field.sub_field}).
+// Only basic substitutions via {var}, {var=*} and {var=**} of top-level
+// fields are supported. {var} is a short hand for {var=*} and
+// substitutes the value of a message field with path escaping (%2...).
+// {var=**} will substitute without path. This may be useful for
+// expansions where the values include slashes and is deviation from
+// the spec, which only allows {var=**} for the last path segment.
+//
+// The extended syntax for `*` and `**` substitutions with further path
+// segments is not implemented. Nested field values are not supported
+// (e.g.{msg_field.sub_field}).
+//
 // TODO: Complete interpolate implementation for full substitution grammar
 func interpolate(templatePath string, msg proto.Message) (string, map[string]bool, error) {
 	m := msg.ProtoReflect()
 	fds := m.Descriptor().Fields()
-	re := regexp.MustCompile(`{([a-zA-Z0-9_-]+)}`)
+	re := regexp.MustCompile(`{([a-zA-Z0-9_-]+)(=\*\*?)?}`)
 
 	keys := map[string]bool{}
 	result := templatePath
@@ -185,7 +193,10 @@ func interpolate(templatePath string, msg proto.Message) (string, map[string]boo
 			return "", nil, fmt.Errorf("only primitive types supported in path substitution")
 		}
 		val := m.Get(fd).String()
-		result = strings.ReplaceAll(result, fullMatch, url.PathEscape(val))
+		if match[2] != "=**" {
+			val = url.PathEscape(val)
+		}
+		result = strings.ReplaceAll(result, fullMatch, val)
 		keys[fieldName] = true
 	}
 	return result, keys, nil

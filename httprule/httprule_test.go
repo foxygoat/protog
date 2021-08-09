@@ -188,23 +188,29 @@ func TestNewHTTPRequest(t *testing.T) {
 			wantMethod: "DELETE",
 			wantURL:    u1 + "/v1/val1"},
 		"path_and_query": {
-			rule:       &pb.HttpRule{Pattern: &pb.HttpRule_Post{Post: "v1/{weird_FieldName_1_}/bool/{a_bool2}"}},
+			rule:       &pb.HttpRule{Pattern: &pb.HttpRule_Post{Post: "v1/{weird_FieldName_1_=*}/bool/{a_bool2}"}},
 			baseURL:    u3,
 			pbReq:      &internal.TestMessage3{Weird_FieldName_1_: "val1", ABool2: true, AInt_3: 2},
 			wantMethod: "POST",
 			wantURL:    u3 + "/v1/val1/bool/true?a_int_3=2"},
 		"path_zero_values": {
-			rule:       &pb.HttpRule{Pattern: &pb.HttpRule_Put{Put: "v1/{weird_FieldName_1_}/bool/{a_bool2}"}},
+			rule:       &pb.HttpRule{Pattern: &pb.HttpRule_Put{Put: "v1/{weird_FieldName_1_}/bool/{a_bool2=**}"}},
 			baseURL:    u4,
 			pbReq:      &internal.TestMessage3{},
 			wantMethod: "PUT",
 			wantURL:    u4 + "v1/bool/false"},
 		"path_with_slash": {
-			rule:       &pb.HttpRule{Pattern: &pb.HttpRule_Put{Put: "{field1}"}},
+			rule:       &pb.HttpRule{Pattern: &pb.HttpRule_Put{Put: "{field1=*}"}},
 			baseURL:    u4,
 			pbReq:      &internal.TestMessage1{Field1: "library/ubuntu"},
 			wantMethod: "PUT",
 			wantURL:    u4 + "library%252Fubuntu"},
+		"path_with_slash_unescaped": {
+			rule:       &pb.HttpRule{Pattern: &pb.HttpRule_Put{Put: "{field1=**}"}},
+			baseURL:    u4,
+			pbReq:      &internal.TestMessage1{Field1: "library/ubuntu"},
+			wantMethod: "PUT",
+			wantURL:    u4 + "library/ubuntu"},
 		"path_encoding": {
 			rule:       &pb.HttpRule{Pattern: &pb.HttpRule_Put{Put: "{field1}"}},
 			baseURL:    u4,
