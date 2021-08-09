@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+option go_package = "foxygo.at/protog/httprule/internal";
+
+message TestMessage1 {
+  string field1 = 1;
+}
+
+message TestMessage2 {
+  string field1 = 1;
+  int32 field2 = 2;
+  SubMessage field3_sub = 3;
+}
+
+message SubMessage {
+  string sub_field = 1;
+}
