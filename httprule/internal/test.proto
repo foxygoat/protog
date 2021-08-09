@@ -14,4 +14,14 @@ message TestMessage2 {
 
 message SubMessage {
   string sub_field = 1;
+  repeated int32 sub_repeat = 2;
 }
+
+message TestMessage3 {
+  string weird_FieldName_1_ = 1;
+  bool a_bool2 = 2;
+  int32 a_int_3 = 3;
+  repeated string a_repeat = 4;
+  repeated SubMessage a_submsg_repeat = 5;
+}
+

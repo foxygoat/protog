@@ -2,7 +2,7 @@
 
 # --- Global -------------------------------------------------------------------
 O = out
-COVERAGE = 90
+COVERAGE = 95
 VERSION ?= $(shell git describe --tags --dirty  --always)
 REPO_ROOT = $(shell git rev-parse --show-toplevel)
 

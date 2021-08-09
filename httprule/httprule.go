@@ -15,12 +15,20 @@
 package httprule
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
+	"net/url"
+	"path"
+	"regexp"
+	"strings"
 
 	pb "google.golang.org/genproto/googleapis/api/annotations"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 var (
@@ -59,7 +67,7 @@ func newField(fieldName string, msg proto.Message) (proto.Message, error) {
 	if fd == nil {
 		return nil, fmt.Errorf("%w: field '%s' not in message", ErrInvalidHttpRule, fieldName)
 	}
-	if fd.Message() == nil {
+	if fd.Kind() != protoreflect.MessageKind {
 		return nil, fmt.Errorf("%w: field '%s' is not a message type", ErrInvalidHttpRule, fieldName)
 	}
 	val := m.NewField(fd)
@@ -68,8 +76,208 @@ func newField(fieldName string, msg proto.Message) (proto.Message, error) {
 }
 
 func ValidateHTTPRule(rule *pb.HttpRule) error {
+	if method(rule) == "" {
+		return fmt.Errorf("%w: invalid method or empty path", ErrInvalidHttpRule)
+	}
 	if (rule.GetGet() != "" || rule.GetDelete() != "") && rule.Body != "" {
 		return fmt.Errorf("%w: body not allowed with GET or DELETE request", ErrInvalidHttpRule)
 	}
 	return nil
+}
+
+// NewHTTPReuqest creates an *http.Request for a given proto message and
+// HTTPRule, containing the request mapping information.
+func NewHTTPRequest(rule *pb.HttpRule, baseURL string, req proto.Message) (*http.Request, error) {
+	u, err := url.Parse(baseURL)
+	if err != nil {
+		return nil, fmt.Errorf("cannot parse baseURL: %w", err)
+	}
+	if err := ValidateHTTPRule(rule); err != nil {
+		return nil, err
+	}
+
+	templPath := templatePath(rule) // e.g. /v1/messages/{message_id}/{sub.subfield}
+	p, keys, err := interpolate(templPath, req)
+	if err != nil {
+		return nil, err
+	}
+	u.Path = path.Join(u.Path, p)
+
+	body, err := jsonBody(rule.Body, req, keys)
+	if err != nil {
+		return nil, err
+	}
+	if rule.Body != "*" {
+		q, err := urlQuery(req, keys)
+		if err != nil {
+			return nil, err
+		}
+		u.RawQuery = q.Encode()
+	}
+
+	r, err := http.NewRequest(method(rule), u.String(), body)
+	if err != nil {
+		return nil, fmt.Errorf("cannot create HTTP request: %w", err)
+	}
+	return r, nil
+}
+
+// jsonBody returns an io.Reader of the for the given top-level message field, or the whole message
+// if bodyField is set to "*".
+func jsonBody(bodyField string, msg proto.Message, skip map[string]bool) (io.Reader, error) {
+	if bodyField == "" {
+		return nil, nil
+	}
+	if (bodyField == "*" && len(skip) != 0) || skip[bodyField] {
+		return nil, fmt.Errorf("%w: body and path fields overlap", ErrInvalidHttpRule)
+	}
+	if bodyField != "*" {
+		m := msg.ProtoReflect()
+		fds := m.Descriptor().Fields()
+		fd := fds.ByTextName(bodyField)
+		if fd == nil {
+			return nil, fmt.Errorf("%w: field '%s' not in message", ErrInvalidHttpRule, bodyField)
+		}
+		if fd.Kind() != protoreflect.MessageKind {
+			return nil, fmt.Errorf("%w: field '%s' is not a message type", ErrInvalidHttpRule, bodyField)
+		}
+		skip[bodyField] = true
+		msg = m.Get(fd).Message().Interface()
+	}
+	b, err := protojson.Marshal(msg)
+	if err != nil {
+		return nil, fmt.Errorf("cannot create bodyJSON for '%s': %w", bodyField, err)
+	}
+	return bytes.NewReader(b), nil
+}
+
+// interpolate returns a path from a templated path and a proto message
+// whose values are substituted in the path template. For example:
+//
+//    templatePath:              "/v1/messages/{message_id}"
+//    proto message definition:  message M {  string message_id = 1; }
+//    proto message value:       { message_id: 123 }
+//
+//    => result path:            "/v1/messages/123"
+//
+// Referenced message fields must have primitive types; they cannot not
+// repeated or message types. See:
+// https://github.com/googleapis/googleapis/blob/master/google/api/http.proto
+//
+// Only basic substitutions via {field_name} of top-level fields are supported.
+// The extended syntax for `*` and `**` substitutions is not implemented.
+// Nested field values are not supported (e.g. {msg_field.sub_field}).
+// TODO: Complete interpolate implementation for full substitution grammar
+func interpolate(templatePath string, msg proto.Message) (string, map[string]bool, error) {
+	m := msg.ProtoReflect()
+	fds := m.Descriptor().Fields()
+	re := regexp.MustCompile(`{([a-zA-Z0-9_-]+)}`)
+
+	keys := map[string]bool{}
+	result := templatePath
+	for _, match := range re.FindAllStringSubmatch(templatePath, -1) {
+		fullMatch, fieldName := match[0], match[1]
+		fd := fds.ByTextName(fieldName)
+		if fd == nil {
+			return "", nil, fmt.Errorf("cannot find %s in request proto message: %w", fieldName, ErrInvalidHttpRule)
+		}
+		if fd.Kind() == protoreflect.MessageKind || fd.Cardinality() == protoreflect.Repeated {
+			return "", nil, fmt.Errorf("only primitive types supported in path substitution")
+		}
+		val := m.Get(fd).String()
+		result = strings.ReplaceAll(result, fullMatch, url.PathEscape(val))
+		keys[fieldName] = true
+	}
+	return result, keys, nil
+}
+
+// urlQuery converts a proto message into url.Values.
+//
+//  {"a": "A", "b": {"nested": "🐣"}, "SLICE": [1, 2]}}
+//       => ?a=A&b.nested=🐣&SLICE=1&SLICE=2
+//
+// TODO: Investigate zero value encoding for optional and default types.
+func urlQuery(m proto.Message, skip map[string]bool) (url.Values, error) {
+	pm := &protojson.MarshalOptions{UseProtoNames: true}
+	b, err := pm.Marshal(m)
+	if err != nil {
+		return nil, fmt.Errorf("cannot marshal message for URL query encoding: %w", err)
+	}
+
+	var obj map[string]interface{}
+	if err := json.Unmarshal(b, &obj); err != nil {
+		return nil, fmt.Errorf("cannot query encode: error unmarshalling '%v': %w", m, err)
+	}
+
+	vals := url.Values{}
+	if err := queryEnc(obj, "", vals, skip); err != nil {
+		return nil, err
+	}
+	return vals, nil
+}
+
+func queryEnc(m map[string]interface{}, path string, vals url.Values, skip map[string]bool) error {
+	for key, val := range m {
+		p := path + key
+		if skip[p] {
+			continue
+		}
+		switch v := val.(type) {
+		case int, bool, string, float64:
+			vals.Add(p, fmt.Sprintf("%v", v))
+		case []interface{}:
+			if err := addSlice(v, p, vals); err != nil {
+				return err
+			}
+		case map[string]interface{}:
+			if err := queryEnc(v, p+".", vals, skip); err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("cannot query encode %T", v)
+		}
+	}
+	return nil
+}
+
+func addSlice(s []interface{}, path string, vals url.Values) error {
+	for _, el := range s {
+		switch v := el.(type) {
+		case int, bool, string, float64:
+			vals.Add(path, fmt.Sprintf("%v", v))
+		default:
+			return fmt.Errorf("cannot query encode slices of non-basic type %T", v)
+		}
+	}
+	return nil
+}
+
+func templatePath(rule *pb.HttpRule) string {
+	switch {
+	case rule.GetGet() != "":
+		return rule.GetGet()
+	case rule.GetPut() != "":
+		return rule.GetPut()
+	case rule.GetPost() != "":
+		return rule.GetPost()
+	case rule.GetDelete() != "":
+		return rule.GetDelete()
+	}
+	return ""
+}
+
+func method(rule *pb.HttpRule) string {
+	switch {
+	case rule.GetGet() != "":
+		return http.MethodGet
+	case rule.GetPut() != "":
+		return http.MethodPut
+	case rule.GetPost() != "":
+		return http.MethodPost
+	case rule.GetDelete() != "":
+		return http.MethodDelete
+	case rule.GetPatch() != "":
+		return http.MethodPatch
+	}
+	return ""
 }
