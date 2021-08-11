@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+option go_package = "foxygo.at/protog/httprule/internal";
+
+import "google/api/annotations.proto";
+
+service Echo {
+  rpc Hello (HelloRequest) returns (HelloResponse) {
+    option (google.api.http) = { post:"/api/echo/hello" body:"*" };
+  };
+
+  rpc Hello2 (HelloRequest) returns (HelloResponse);
+}
+
+message HelloRequest {
+  string message = 1;
+}
+
+message HelloResponse {
+  string response = 1;
+}

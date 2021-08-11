@@ -2,7 +2,7 @@
 
 # --- Global -------------------------------------------------------------------
 O = out
-COVERAGE = 95
+COVERAGE = 90
 VERSION ?= $(shell git describe --tags --dirty  --always)
 REPO_ROOT = $(shell git rev-parse --show-toplevel)
 
@@ -65,7 +65,11 @@ lint:  ## Lint go source code
 # --- Protos ---------------------------------------------------------------------
 
 protos:
-	protoc --go_out=. --go_opt=module=foxygo.at/protog httprule/internal/test.proto
+	protoc \
+		--go_out=. --go-grpc_out=. \
+		--go_opt=module=foxygo.at/protog --go-grpc_opt=module=foxygo.at/protog \
+		-I httprule/internal \
+		test.proto echo.proto
 	goimports -w .
 
 .PHONY: protos
@@ -90,7 +94,8 @@ help:
 	@awk -F ':.*## ' 'NF == 2 && $$1 ~ /^[A-Za-z0-9%_-]+$$/ { printf "$(COLOUR_WHITE)%-25s$(COLOUR_NORMAL)%s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
 
 tools:
-	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.25.0
+	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.27.1
+	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.1
 	go install golang.org/x/tools/cmd/goimports@v0.1.5
 	go install github.com/juliaogris/reflect@v0.0.22
 
