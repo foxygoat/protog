@@ -66,8 +66,8 @@ lint:  ## Lint go source code
 
 protos:
 	protoc \
-		--go_out=. --go-grpc_out=. \
-		--go_opt=module=foxygo.at/protog --go-grpc_opt=module=foxygo.at/protog \
+		--go_out=. --go_opt=module=foxygo.at/protog  \
+		--go-grpc_out=. --go-grpc_opt=module=foxygo.at/protog \
 		-I httprule/internal \
 		test.proto echo.proto
 	goimports -w .
