@@ -97,7 +97,8 @@ func NewHTTPRequest(rule *pb.HttpRule, baseURL string, req proto.Message) (*http
 	}
 
 	templPath := templatePath(rule) // e.g. /v1/messages/{message_id}/{sub.subfield}
-	p, keys, err := interpolate(templPath, req)
+	keys := map[string]bool{}
+	p, err := interpolate(templPath, req, keys)
 	if err != nil {
 		return nil, err
 	}
@@ -107,19 +108,46 @@ func NewHTTPRequest(rule *pb.HttpRule, baseURL string, req proto.Message) (*http
 	if err != nil {
 		return nil, err
 	}
-	if rule.Body != "*" {
-		q, err := urlQuery(req, keys)
-		if err != nil {
-			return nil, err
-		}
-		u.RawQuery = q.Encode()
+	header, err := requestHeaders(rule, req, keys)
+	if err != nil {
+		return nil, err
+	}
+	u.RawQuery, err = urlRawQuery(rule.Body, req, keys)
+	if err != nil {
+		return nil, err
 	}
 
 	r, err := http.NewRequest(method(rule), u.String(), body)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create HTTP request: %w", err)
 	}
+	r.Header = header
 	return r, nil
+}
+
+func requestHeaders(httpRule *pb.HttpRule, req proto.Message, skip map[string]bool) (http.Header, error) {
+	h := http.Header{}
+	for _, rule := range httpRule.AdditionalBindings {
+		if custom := rule.GetCustom(); custom != nil {
+			if custom.Kind == "header" {
+				key, val, err := parseHeader(custom.Path, req, skip)
+				if err != nil {
+					return nil, err
+				}
+				h.Add(key, val)
+			}
+		}
+	}
+	return h, nil
+}
+
+func parseHeader(s string, m proto.Message, skip map[string]bool) (key string, val string, err error) {
+	// "Content-Type: application/json"
+	parts := strings.SplitN(s, ":", 2)
+	key, val = parts[0], strings.TrimSpace(parts[1])
+	key = http.CanonicalHeaderKey(key)
+	val, err = interpolate(val, m, skip)
+	return key, val, err
 }
 
 // jsonBody returns an io.Reader of the for the given top-level message field, or the whole message
@@ -176,55 +204,60 @@ func jsonBody(bodyField string, msg proto.Message, skip map[string]bool) (io.Rea
 // (e.g.{msg_field.sub_field}).
 //
 // TODO: Complete interpolate implementation for full substitution grammar
-func interpolate(templatePath string, msg proto.Message) (string, map[string]bool, error) {
+func interpolate(templ string, msg proto.Message, skipKeys map[string]bool) (string, error) {
 	m := msg.ProtoReflect()
 	fds := m.Descriptor().Fields()
 	re := regexp.MustCompile(`{([a-zA-Z0-9_-]+)(=\*\*?)?}`)
 
-	keys := map[string]bool{}
-	result := templatePath
-	for _, match := range re.FindAllStringSubmatch(templatePath, -1) {
+	result := templ
+	for _, match := range re.FindAllStringSubmatch(templ, -1) {
 		fullMatch, fieldName := match[0], match[1]
+		if skipKeys[fieldName] {
+			return "", fmt.Errorf("%w: field %q already in use", ErrInvalidHttpRule, fieldName)
+		}
 		fd := fds.ByTextName(fieldName)
 		if fd == nil {
-			return "", nil, fmt.Errorf("cannot find %s in request proto message: %w", fieldName, ErrInvalidHttpRule)
+			return "", fmt.Errorf("cannot find %s in request proto message: %w", fieldName, ErrInvalidHttpRule)
 		}
 		if fd.Kind() == protoreflect.MessageKind || fd.Cardinality() == protoreflect.Repeated {
-			return "", nil, fmt.Errorf("only primitive types supported in path substitution")
+			return "", fmt.Errorf("only primitive types supported in path substitution")
 		}
 		val := m.Get(fd).String()
 		if match[2] != "=**" {
 			val = url.PathEscape(val)
 		}
 		result = strings.ReplaceAll(result, fullMatch, val)
-		keys[fieldName] = true
+		skipKeys[fieldName] = true
 	}
-	return result, keys, nil
+	return result, nil
 }
 
-// urlQuery converts a proto message into url.Values.
+// urlRawQuery converts a proto message into url.Values.
 //
 //  {"a": "A", "b": {"nested": "🐣"}, "SLICE": [1, 2]}}
 //       => ?a=A&b.nested=🐣&SLICE=1&SLICE=2
 //
 // TODO: Investigate zero value encoding for optional and default types.
-func urlQuery(m proto.Message, skip map[string]bool) (url.Values, error) {
+func urlRawQuery(bodyRule string, m proto.Message, skip map[string]bool) (string, error) {
+	if bodyRule == "*" {
+		return "", nil
+	}
 	pm := &protojson.MarshalOptions{UseProtoNames: true}
 	b, err := pm.Marshal(m)
 	if err != nil {
-		return nil, fmt.Errorf("cannot marshal message for URL query encoding: %w", err)
+		return "", fmt.Errorf("cannot marshal message for URL query encoding: %w", err)
 	}
 
 	var obj map[string]interface{}
 	if err := json.Unmarshal(b, &obj); err != nil {
-		return nil, fmt.Errorf("cannot query encode: error unmarshalling '%v': %w", m, err)
+		return "", fmt.Errorf("cannot query encode: error unmarshalling '%v': %w", m, err)
 	}
 
 	vals := url.Values{}
 	if err := queryEnc(obj, "", vals, skip); err != nil {
-		return nil, err
+		return "", err
 	}
-	return vals, nil
+	return vals.Encode(), nil
 }
 
 func queryEnc(m map[string]interface{}, path string, vals url.Values, skip map[string]bool) error {
