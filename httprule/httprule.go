@@ -79,9 +79,6 @@ func ValidateHTTPRule(rule *pb.HttpRule) error {
 	if method(rule) == "" {
 		return fmt.Errorf("%w: invalid method or empty path", ErrInvalidHttpRule)
 	}
-	if (rule.GetGet() != "" || rule.GetDelete() != "") && rule.Body != "" {
-		return fmt.Errorf("%w: body not allowed with GET or DELETE request", ErrInvalidHttpRule)
-	}
 	return nil
 }
 
