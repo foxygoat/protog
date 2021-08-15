@@ -61,20 +61,6 @@ func ParseProtoResponse(rule *pb.HttpRule, body io.Reader, target proto.Message)
 	return nil
 }
 
-func newField(fieldName string, msg proto.Message) (proto.Message, error) {
-	m := msg.ProtoReflect()
-	fd := m.Descriptor().Fields().ByTextName(fieldName)
-	if fd == nil {
-		return nil, fmt.Errorf("%w: field '%s' not in message", ErrInvalidHttpRule, fieldName)
-	}
-	if fd.Kind() != protoreflect.MessageKind {
-		return nil, fmt.Errorf("%w: field '%s' is not a message type", ErrInvalidHttpRule, fieldName)
-	}
-	val := m.NewField(fd)
-	m.Set(fd, val)
-	return val.Message().Interface(), nil
-}
-
 func ValidateHTTPRule(rule *pb.HttpRule) error {
 	if method(rule) == "" {
 		return fmt.Errorf("%w: invalid method or empty path", ErrInvalidHttpRule)
@@ -120,6 +106,20 @@ func NewHTTPRequest(rule *pb.HttpRule, baseURL string, req proto.Message) (*http
 	}
 	r.Header = header
 	return r, nil
+}
+
+func newField(fieldName string, msg proto.Message) (proto.Message, error) {
+	m := msg.ProtoReflect()
+	fd := m.Descriptor().Fields().ByTextName(fieldName)
+	if fd == nil {
+		return nil, fmt.Errorf("%w: field '%s' not in message", ErrInvalidHttpRule, fieldName)
+	}
+	if fd.Kind() != protoreflect.MessageKind {
+		return nil, fmt.Errorf("%w: field '%s' is not a message type", ErrInvalidHttpRule, fieldName)
+	}
+	val := m.NewField(fd)
+	m.Set(fd, val)
+	return val.Message().Interface(), nil
 }
 
 func requestHeaders(httpRule *pb.HttpRule, req proto.Message, skip map[string]bool) (http.Header, error) {
