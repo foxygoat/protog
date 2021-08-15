@@ -2,6 +2,7 @@ package httprule
 
 import (
 	"io"
+	"net/http"
 	"net/url"
 	"strings"
 	"testing"
@@ -174,6 +175,7 @@ func TestNewHTTPRequest(t *testing.T) {
 		wantMethod string
 		wantURL    string
 		wantBody   string
+		wantHeader http.Header
 	}{
 		"simple-query": {
 			rule:       &pb.HttpRule{Pattern: &pb.HttpRule_Get{Get: "/"}},
@@ -281,6 +283,37 @@ func TestNewHTTPRequest(t *testing.T) {
 			wantMethod: "POST",
 			wantURL:    u3 + "/field/A?field2=22",
 			wantBody:   `{"subField": "B", "subRepeat": [1, 10]} `},
+		"header": {
+			rule: &pb.HttpRule{
+				Pattern: &pb.HttpRule_Post{Post: "/"},
+				Body:    "field3_sub",
+				AdditionalBindings: []*pb.HttpRule{
+					{
+						Pattern: &pb.HttpRule_Custom{
+							Custom: &pb.CustomHttpPattern{
+								Kind: "header",
+								Path: "field2: {field2}",
+							},
+						},
+					},
+				},
+			},
+			baseURL: u3,
+			pbReq: &internal.TestMessage2{
+				Field1: "val1",
+				Field2: 2,
+				Field3Sub: &internal.SubMessage{
+					SubField:  "sub1",
+					SubRepeat: []int32{1, 2, 3},
+				},
+			},
+			wantHeader: http.Header{"Field2": []string{"2"}},
+			wantMethod: "POST",
+			wantURL:    u3 + "?field1=val1",
+			wantBody: `{
+				"subField": "sub1",
+				"subRepeat": [1,2,3]
+			}`},
 	}
 	for name, tc := range tests {
 		tc := tc
@@ -296,6 +329,9 @@ func TestNewHTTPRequest(t *testing.T) {
 				require.NoError(t, err)
 				got.Body.Close()
 				require.JSONEq(t, tc.wantBody, string(b))
+			}
+			if tc.wantHeader != nil {
+				require.Equal(t, tc.wantHeader, got.Header)
 			}
 		})
 	}
@@ -336,7 +372,7 @@ func TestNewHTTPRequestErr(t *testing.T) {
 			rule:    &pb.HttpRule{Pattern: &pb.HttpRule_Get{Get: "/"}},
 			baseURL: u,
 			pbReq: &internal.TestMessage3{
-				ASubmsgRepeat: []*internal.SubMessage{&internal.SubMessage{SubField: "sub"}},
+				ASubmsgRepeat: []*internal.SubMessage{{SubField: "sub"}},
 			}},
 		"invalid-body-field": {
 			rule:    &pb.HttpRule{Pattern: &pb.HttpRule_Post{Post: "/"}, Body: "MISSING"},
@@ -348,6 +384,22 @@ func TestNewHTTPRequestErr(t *testing.T) {
 			pbReq:   &internal.TestMessage1{}},
 		"path-body-field-overlap": {
 			rule:    &pb.HttpRule{Pattern: &pb.HttpRule_Post{Post: "v1/{field1}"}, Body: "*"},
+			baseURL: u,
+			pbReq:   &internal.TestMessage1{Field1: "val1"}},
+		"path-header-overlap": {
+			rule: &pb.HttpRule{
+				Pattern: &pb.HttpRule_Post{Post: "v1/{field1}"},
+				AdditionalBindings: []*pb.HttpRule{
+					{
+						Pattern: &pb.HttpRule_Custom{
+							Custom: &pb.CustomHttpPattern{
+								Kind: "header",
+								Path: "field1: {field1}",
+							},
+						},
+					},
+				},
+			},
 			baseURL: u,
 			pbReq:   &internal.TestMessage1{Field1: "val1"}},
 	}
