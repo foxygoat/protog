@@ -18,9 +18,9 @@ func TestValidateHTTPRule(t *testing.T) {
 		Pattern: &pb.HttpRule_Get{Get: "abc"},
 		Body:    "abc",
 	}
-	require.Error(t, ValidateHTTPRule(r))
+	require.NoError(t, ValidateHTTPRule(r))
 	r.Body = "*"
-	require.Error(t, ValidateHTTPRule(r))
+	require.NoError(t, ValidateHTTPRule(r))
 	r.Body = ""
 	require.NoError(t, ValidateHTTPRule(r))
 
@@ -28,9 +28,9 @@ func TestValidateHTTPRule(t *testing.T) {
 		Pattern: &pb.HttpRule_Delete{Delete: "abc"},
 		Body:    "abc",
 	}
-	require.Error(t, ValidateHTTPRule(r))
+	require.NoError(t, ValidateHTTPRule(r))
 	r.Body = "*"
-	require.Error(t, ValidateHTTPRule(r))
+	require.NoError(t, ValidateHTTPRule(r))
 	r.Body = ""
 	require.NoError(t, ValidateHTTPRule(r))
 }
@@ -144,14 +144,15 @@ func TestParseProtoResponseErr(t *testing.T) {
 		Pattern: &pb.HttpRule_Get{Get: "/"},
 		Body:    "*",
 	}
-	err := ParseProtoResponse(rule, strings.NewReader(""), nil)
+	m := &internal.TestMessage2{}
+	err := ParseProtoResponse(rule, strings.NewReader("{ BAD JSON"), m)
 	require.Error(t, err)
 
 	rule = &pb.HttpRule{
 		Pattern:      &pb.HttpRule_Get{Get: "/"},
 		ResponseBody: "MISSING_FIELD",
 	}
-	m := &internal.TestMessage2{}
+	m = &internal.TestMessage2{}
 	err = ParseProtoResponse(rule, strings.NewReader("{}"), m)
 	require.Error(t, err)
 
@@ -349,7 +350,7 @@ func TestNewHTTPRequestErr(t *testing.T) {
 			baseURL: "htt  s://BAD-URL",
 			pbReq:   &internal.TestMessage1{}},
 		"invalid-http-rule": {
-			rule:    &pb.HttpRule{Pattern: &pb.HttpRule_Get{Get: "/"}, Body: "*"},
+			rule:    &pb.HttpRule{},
 			baseURL: u,
 			pbReq:   &internal.TestMessage1{}},
 		"invalid-http-rule-pattern": {
