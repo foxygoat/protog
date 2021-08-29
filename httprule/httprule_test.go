@@ -383,6 +383,13 @@ func TestNewHTTPRequest(t *testing.T) {
 			pbReq:      &internal.TestMessage1{Field1: "val1"},
 			wantMethod: "DELETE",
 			wantURL:    u1 + "/v1/val1"},
+		"head_method": {
+			rule:       customRule("HEAD", "v1"),
+			baseURL:    u1,
+			pbReq:      &internal.TestMessage1{},
+			wantMethod: "HEAD",
+			wantURL:    u1 + "/v1",
+		},
 		"path_and_query": {
 			rule:       &pb.HttpRule{Pattern: &pb.HttpRule_Post{Post: "v1/{weird_FieldName_1_=*}/bool/{a_bool2}"}},
 			baseURL:    u3,
@@ -482,14 +489,7 @@ func TestNewHTTPRequest(t *testing.T) {
 				Pattern: &pb.HttpRule_Post{Post: "/"},
 				Body:    "field3_sub",
 				AdditionalBindings: []*pb.HttpRule{
-					{
-						Pattern: &pb.HttpRule_Custom{
-							Custom: &pb.CustomHttpPattern{
-								Kind: "header",
-								Path: "field2: {field2}",
-							},
-						},
-					},
+					customRule("header", "field2: {field2}"),
 				},
 			},
 			baseURL: u3,
@@ -584,14 +584,7 @@ func TestNewHTTPRequestErr(t *testing.T) {
 			rule: &pb.HttpRule{
 				Pattern: &pb.HttpRule_Post{Post: "v1/{field1}"},
 				AdditionalBindings: []*pb.HttpRule{
-					{
-						Pattern: &pb.HttpRule_Custom{
-							Custom: &pb.CustomHttpPattern{
-								Kind: "header",
-								Path: "field1: {field1}",
-							},
-						},
-					},
+					customRule("header", "field: {field1}"),
 				},
 			},
 			baseURL: u,
