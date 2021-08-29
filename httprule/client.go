@@ -51,7 +51,7 @@ func (c *ClientConn) Invoke(ctx context.Context, method string, args, reply inte
 	if err := errorStatus(resp.StatusCode); err != nil {
 		return err
 	}
-	return ParseProtoResponse(rule, resp.Body, reply.(proto.Message))
+	return ParseProtoResponse(rule, resp, reply.(proto.Message))
 }
 
 func getHttpRule(method string) (*pb.HttpRule, error) {

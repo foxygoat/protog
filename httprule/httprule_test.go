@@ -37,12 +37,19 @@ func TestValidateHTTPRule(t *testing.T) {
 
 func requireProtoEqual(t *testing.T, want, got proto.Message) {
 	t.Helper()
-	require.True(t, proto.Equal(want, got), "protos are not Equal \nproto1: %v\nproto2: %v", want, got)
+	require.True(t, proto.Equal(want, got), "protos are not Equal \nwant: %v\ngot : %v", want, got)
 }
 
 func requireProtoNotEqual(t *testing.T, want, got proto.Message) {
 	t.Helper()
-	require.False(t, proto.Equal(want, got), "protos are Equal \nproto1: %v\nproto2: %v", want, got)
+	require.False(t, proto.Equal(want, got), "protos are Equal \nwant: %v\ngot : %v", want, got)
+}
+
+func newResponse(body string) *http.Response {
+	return &http.Response{
+		Body:   io.NopCloser(strings.NewReader(body)),
+		Header: make(http.Header),
+	}
 }
 
 func TestParseProtoResponseMsg1(t *testing.T) {
@@ -50,12 +57,12 @@ func TestParseProtoResponseMsg1(t *testing.T) {
 	s := `{"field1": "val1"}`
 	got := &internal.TestMessage1{}
 	want := &internal.TestMessage1{Field1: "val1"}
-	err := ParseProtoResponse(rule, strings.NewReader(s), got)
+	err := ParseProtoResponse(rule, newResponse(s), got)
 	require.NoError(t, err)
 	requireProtoEqual(t, want, got)
 
 	s = `{"field1": "XXXX"}`
-	err = ParseProtoResponse(rule, strings.NewReader(s), got)
+	err = ParseProtoResponse(rule, newResponse(s), got)
 	require.NoError(t, err)
 	requireProtoNotEqual(t, want, got)
 }
@@ -65,32 +72,218 @@ func TestParseProtoResponseMsg2(t *testing.T) {
 	s := `{"field1": "val1"}`
 	got := &internal.TestMessage2{}
 	want := &internal.TestMessage2{Field1: "val1"}
-	err := ParseProtoResponse(rule, strings.NewReader(s), got)
+	err := ParseProtoResponse(rule, newResponse(s), got)
 	require.NoError(t, err)
 	requireProtoEqual(t, want, got)
 
 	s = `{}`
 	want = &internal.TestMessage2{}
-	err = ParseProtoResponse(rule, strings.NewReader(s), got)
+	err = ParseProtoResponse(rule, newResponse(s), got)
 	require.NoError(t, err)
 	requireProtoEqual(t, want, got)
 
 	s = `{"field2": 0}`
-	err = ParseProtoResponse(rule, strings.NewReader(s), got)
+	err = ParseProtoResponse(rule, newResponse(s), got)
 	require.NoError(t, err)
 	requireProtoEqual(t, want, got)
 
 	s = `{"field2": 3}`
 	want = &internal.TestMessage2{Field2: 3}
-	err = ParseProtoResponse(rule, strings.NewReader(s), got)
+	err = ParseProtoResponse(rule, newResponse(s), got)
 	require.NoError(t, err)
 	requireProtoEqual(t, want, got)
 
 	s = `{"field3Sub": {"subField": "abc"} }`
 	want = &internal.TestMessage2{Field3Sub: &internal.SubMessage{SubField: "abc"}}
-	err = ParseProtoResponse(rule, strings.NewReader(s), got)
+	err = ParseProtoResponse(rule, newResponse(s), got)
 	require.NoError(t, err)
 	requireProtoEqual(t, want, got)
+}
+
+func responseHeaderRules(headers ...string) []*pb.HttpRule {
+	result := []*pb.HttpRule{}
+	for _, h := range headers {
+		result = append(result, customRule("response_header", h))
+	}
+	return result
+}
+
+func customRule(k, p string) *pb.HttpRule {
+	return &pb.HttpRule{
+		Pattern: &pb.HttpRule_Custom{
+			Custom: &pb.CustomHttpPattern{Kind: k, Path: p},
+		},
+	}
+}
+
+func TestParseProtoResponseHeaders(t *testing.T) {
+	// extract all supported types
+	rule := &pb.HttpRule{
+		Pattern: &pb.HttpRule_Get{Get: "/"},
+		AdditionalBindings: responseHeaderRules(
+			"bool: {a_bool}",
+			"int32: {a_int32}",
+			"sint32: {a_sint32}",
+			"sfixed32: {a_sfixed32}",
+			"uint32: {a_uint32}",
+			"fixed32: {a_fixed32}",
+			"int64: {a_int64}",
+			"sint64: {a_sint64}",
+			"sfixed64: {a_sfixed64}",
+			"uint64: {a_uint64}",
+			"fixed64: {a_fixed64}",
+			"float: {a_float}",
+			"double: {a_double}",
+			"string: {a_string}",
+			"bytes: {a_bytes}",
+			"stringlist: {a_string_list}",
+		),
+	}
+	resp := newResponse("")
+	resp.Header.Set("bool", "true")
+	resp.Header.Set("int32", "-41")
+	resp.Header.Set("sint32", "42")
+	resp.Header.Set("sfixed32", "-43")
+	resp.Header.Set("uint32", "42")
+	resp.Header.Set("fixed32", "43")
+	resp.Header.Set("int64", "-42000000000")
+	resp.Header.Set("sint64", "42000000001")
+	resp.Header.Set("sfixed64", "-42000000002")
+	resp.Header.Set("uint64", "42000000000")
+	resp.Header.Set("fixed64", "43000000000")
+	resp.Header.Set("float", "3.141592654")
+	resp.Header.Set("double", "2.718281828")
+	resp.Header.Set("string", "hello world")
+	resp.Header.Set("bytes", "farewell world")
+	resp.Header.Add("stringlist", "hello")
+	resp.Header.Add("stringlist", "world")
+	got := &internal.TestMessage4{}
+	want := &internal.TestMessage4{
+		ABool:       true,
+		AInt32:      -41,
+		ASint32:     42,
+		ASfixed32:   -43,
+		AUint32:     42,
+		AFixed32:    43,
+		AInt64:      -42000000000,
+		ASint64:     42000000001,
+		ASfixed64:   -42000000002,
+		AUint64:     42000000000,
+		AFixed64:    43000000000,
+		AFloat:      3.141592654,
+		ADouble:     2.718281828,
+		AString:     "hello world",
+		ABytes:      []byte("farewell world"),
+		AStringList: []string{"hello", "world"},
+	}
+	err := ParseProtoResponse(rule, resp, got)
+	require.NoError(t, err)
+	requireProtoEqual(t, want, got)
+
+	// extract multiple fields in header with literal values ("notice")
+	// extract header field overriding body ("a_bool", "a_int32")
+	// extract last value for multiple same headers with scalar field ("counter")
+	// ignore non response_header additional bindings ("header")
+	// allow rule for missing header ("ignored")
+	rule = &pb.HttpRule{
+		Pattern: &pb.HttpRule_Get{Get: "/"},
+		AdditionalBindings: []*pb.HttpRule{
+			customRule("response_header", "Notice: hello {a_string}. {a_int32} days to go"),
+			customRule("response_header", "Counter: {a_uint64}"),
+			customRule("response_header", "Ignored: {a_bytes}"),
+			customRule("header", "a: b"),
+		},
+	}
+	resp = newResponse(`{"a_bool": true, "a_int32": 105}`)
+	resp.Header.Set("notice", "hello julia. 76 days to go")
+	resp.Header.Add("counter", "76")
+	resp.Header.Add("counter", "75")
+	got = &internal.TestMessage4{}
+	want = &internal.TestMessage4{
+		ABool:   true,
+		AInt32:  76,
+		AUint64: 75,
+		AString: "julia",
+	}
+	err = ParseProtoResponse(rule, resp, got)
+	require.NoError(t, err)
+	requireProtoEqual(t, want, got)
+
+	// match header with literal only (no fields). just a no-op
+	rule = &pb.HttpRule{
+		Pattern:            &pb.HttpRule_Get{Get: "/"},
+		AdditionalBindings: responseHeaderRules("Notice: no fields"),
+	}
+	resp = newResponse("")
+	resp.Header.Set("notice", "no fields")
+	got = &internal.TestMessage4{}
+	want = &internal.TestMessage4{}
+	err = ParseProtoResponse(rule, resp, got)
+	require.NoError(t, err)
+	requireProtoEqual(t, want, got)
+
+	// ignore headers that do not match rules pattern. also a no-op
+	rule = &pb.HttpRule{
+		Pattern:            &pb.HttpRule_Get{Get: "/"},
+		AdditionalBindings: responseHeaderRules("Notice: no fields"),
+	}
+	resp = newResponse("")
+	resp.Header.Set("notice", "no match")
+	got = &internal.TestMessage4{}
+	want = &internal.TestMessage4{}
+	err = ParseProtoResponse(rule, resp, got)
+	require.NoError(t, err)
+	requireProtoEqual(t, want, got)
+
+	// Check that brace escaping matches properly
+	rule = &pb.HttpRule{
+		Pattern:            &pb.HttpRule_Get{Get: "/"},
+		AdditionalBindings: responseHeaderRules(`Notice: \{literal}{a_string}\{literal}`),
+	}
+	resp = newResponse("")
+	resp.Header.Set("notice", "{literal}string value{literal}")
+	got = &internal.TestMessage4{}
+	want = &internal.TestMessage4{AString: "string value"}
+	err = ParseProtoResponse(rule, resp, got)
+	require.NoError(t, err)
+	requireProtoEqual(t, want, got)
+}
+
+func TestParseProtoResponseHeadersErr(t *testing.T) {
+	rule := &pb.HttpRule{
+		Pattern:            &pb.HttpRule_Get{Get: "/"},
+		AdditionalBindings: responseHeaderRules("Notice: {unterminated"),
+	}
+	resp := newResponse("")
+	resp.Header.Set("notice", "hello")
+	got := &internal.TestMessage4{}
+	err := ParseProtoResponse(rule, resp, got)
+	require.Error(t, err)
+
+	// empty field name
+	rule.AdditionalBindings = responseHeaderRules("Notice: {}")
+	err = ParseProtoResponse(rule, resp, got)
+	require.Error(t, err)
+
+	// invalid field name
+	rule.AdditionalBindings = responseHeaderRules("Notice: {hello-world}")
+	err = ParseProtoResponse(rule, resp, got)
+	require.Error(t, err)
+
+	// extract to unsupported type (message)
+	rule.AdditionalBindings = responseHeaderRules("Notice: {a_message}")
+	err = ParseProtoResponse(rule, resp, got)
+	require.Error(t, err)
+
+	// extract to unsupported type (map)
+	rule.AdditionalBindings = responseHeaderRules("Notice: {a_map}")
+	err = ParseProtoResponse(rule, resp, got)
+	require.Error(t, err)
+
+	// extract to field not in response
+	rule.AdditionalBindings = responseHeaderRules("Notice: {missing}")
+	err = ParseProtoResponse(rule, resp, got)
+	require.Error(t, err)
 }
 
 func TestField(t *testing.T) {
@@ -134,7 +327,7 @@ func TestParseProtoResponseSub(t *testing.T) {
 		Field2:    0,
 		Field3Sub: &internal.SubMessage{SubField: "abc"},
 	}
-	err := ParseProtoResponse(rule, strings.NewReader(s), got)
+	err := ParseProtoResponse(rule, newResponse(s), got)
 	require.NoError(t, err)
 	requireProtoEqual(t, want, got)
 }
@@ -145,7 +338,7 @@ func TestParseProtoResponseErr(t *testing.T) {
 		Body:    "*",
 	}
 	m := &internal.TestMessage2{}
-	err := ParseProtoResponse(rule, strings.NewReader("{ BAD JSON"), m)
+	err := ParseProtoResponse(rule, newResponse("{ BAD JSON"), m)
 	require.Error(t, err)
 
 	rule = &pb.HttpRule{
@@ -153,14 +346,14 @@ func TestParseProtoResponseErr(t *testing.T) {
 		ResponseBody: "MISSING_FIELD",
 	}
 	m = &internal.TestMessage2{}
-	err = ParseProtoResponse(rule, strings.NewReader("{}"), m)
+	err = ParseProtoResponse(rule, newResponse("{}"), m)
 	require.Error(t, err)
 
 	rule = &pb.HttpRule{
 		Pattern:      &pb.HttpRule_Get{Get: "/"},
 		ResponseBody: "field2",
 	}
-	err = ParseProtoResponse(rule, strings.NewReader("{}"), m)
+	err = ParseProtoResponse(rule, newResponse("{}"), m)
 	require.Error(t, err)
 }
 

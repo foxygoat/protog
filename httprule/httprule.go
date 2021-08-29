@@ -23,6 +23,7 @@ import (
 	"net/url"
 	"path"
 	"regexp"
+	"strconv"
 	"strings"
 
 	pb "google.golang.org/genproto/googleapis/api/annotations"
@@ -35,19 +36,37 @@ var (
 	ErrInvalidHttpRule = fmt.Errorf("invalid HttpRule")
 )
 
-// ParseProtoResponse parses a proto message from a HTTPRule and an
-// io.Reader, typically an http.Response.Body. rule.ResponseBody may
-// only reference a top-level field of the response target proto
-// message. rule.ResponseBody may also be empty.
-func ParseProtoResponse(rule *pb.HttpRule, body io.Reader, target proto.Message) error {
+// ParseProtoResponse parses a http.Response using a HttpRule into a target
+// message. The HttpRule contains a specification of how the response body and
+// headers are mapped into the target proto message. The body JSON may map
+// directly to the target message, or it may map to a top-level field of the
+// target message. Response headers may reference any top-level scalar or
+// repeated scalar fields of the target message.
+//
+// The http.Response body is consumed but not closed.
+func ParseProtoResponse(rule *pb.HttpRule, resp *http.Response, target proto.Message) error {
 	if err := ValidateHTTPRule(rule); err != nil {
 		return err
 	}
+	if err := parseResponseBody(rule, resp.Body, target); err != nil {
+		return err
+	}
+	if err := parseResponseHeaders(rule, resp.Header, target); err != nil {
+		return err
+	}
+	return nil
+}
 
+func parseResponseBody(rule *pb.HttpRule, body io.Reader, target proto.Message) error {
 	b, err := io.ReadAll(body)
 	if err != nil {
-		return fmt.Errorf("ParseProtoResponse: %w", err)
+		return fmt.Errorf("reading body: %w", err)
 	}
+
+	if len(bytes.TrimSpace(b)) == 0 {
+		return nil
+	}
+
 	if rule.ResponseBody != "" {
 		target, err = newField(rule.ResponseBody, target)
 		if err != nil {
@@ -56,7 +75,158 @@ func ParseProtoResponse(rule *pb.HttpRule, body io.Reader, target proto.Message)
 	}
 
 	if err := protojson.Unmarshal(b, target); err != nil {
-		return fmt.Errorf("cannot protojson unmarshal: %w", err)
+		return fmt.Errorf("protojson unmarshal: %w", err)
+	}
+
+	return nil
+}
+
+func parseResponseHeaders(rule *pb.HttpRule, header http.Header, target proto.Message) error {
+	for _, rule := range rule.AdditionalBindings {
+		custom := rule.GetCustom()
+		if custom == nil || custom.Kind != "response_header" {
+			continue
+		}
+		if err := parseResponseHeader(custom.Path, header, target); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func parseResponseHeader(spec string, header http.Header, target proto.Message) error {
+	// "Header: value"
+	parts := strings.SplitN(spec, ":", 2)
+	key, pattern := http.CanonicalHeaderKey(parts[0]), strings.TrimSpace(parts[1])
+	re, err := newResponseHeaderParser(pattern)
+	if err != nil {
+		return fmt.Errorf("%w: response header '%s': %s", ErrInvalidHttpRule, key, err)
+	}
+
+	for _, val := range header.Values(key) {
+		matches := re.FindStringSubmatch(val)
+		if len(matches) < 2 {
+			// no match, nothing to extract
+			continue
+		}
+		fields := re.SubexpNames()
+		for i := 1; i < len(matches); i++ {
+			if err := setField(target, fields[i], matches[i]); err != nil {
+				return fmt.Errorf("%w: %s", ErrInvalidHttpRule, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func newResponseHeaderParser(pattern string) (*regexp.Regexp, error) {
+	// A pattern is an alternation of string literals and a braced field
+	// name. e.g. the pattern "hello {name}." could match the string "hello
+	// julia." where "julia" is to be extracted into the "name" field.
+	// Multiple fields are allowed.
+	result := strings.Builder{}
+	result.WriteString("^")
+	for i := 0; i < len(pattern); {
+		var segment string
+		var length int
+		if pattern[i] != '{' {
+			segment, length = extractLiteral(pattern[i:])
+			segment = regexp.QuoteMeta(segment)
+		} else {
+			var err error
+			segment, length, err = extractField(pattern[i:])
+			if err != nil {
+				return nil, err
+			}
+			segment = "(?P<" + segment + ">.+)"
+		}
+		result.WriteString(segment)
+		i += length
+	}
+	result.WriteString("$")
+	return regexp.Compile(result.String())
+}
+
+var validFieldName = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_]*$`)
+
+func extractField(s string) (string, int, error) {
+	closeBrace := strings.Index(s, "}")
+	if closeBrace == -1 {
+		return "", 0, fmt.Errorf("no closing brace on '%s'", s)
+	}
+	if closeBrace == 1 {
+		return "", 0, fmt.Errorf("empty field name")
+	}
+	fieldName := s[1:closeBrace]
+	if !validFieldName.MatchString(fieldName) {
+		return "", 0, fmt.Errorf("invalid field name '%s'", fieldName)
+	}
+	return fieldName, closeBrace + 1, nil
+}
+
+func extractLiteral(s string) (string, int) {
+	openBrace := strings.Index(s, "{")
+	if openBrace == -1 {
+		return s, len(s)
+	}
+	if openBrace > 0 && s[openBrace-1] == '\\' {
+		// Remove the backslash and advance past the open brace
+		return s[:openBrace-1] + "{", openBrace + 1
+	}
+	return s[:openBrace], openBrace
+}
+
+func setField(target proto.Message, name, valstr string) error {
+	m := target.ProtoReflect()
+	fd := m.Descriptor().Fields().ByTextName(name)
+	if fd == nil {
+		return fmt.Errorf("field '%s' not in message", name)
+	}
+
+	var val interface{}
+	var err error
+	switch fd.Kind() {
+	case protoreflect.BoolKind:
+		val, err = strconv.ParseBool(valstr)
+	case protoreflect.Int32Kind, protoreflect.Sint32Kind, protoreflect.Sfixed32Kind:
+		var v int64
+		v, err = strconv.ParseInt(valstr, 10, 32)
+		val = int32(v)
+	case protoreflect.Uint32Kind, protoreflect.Fixed32Kind:
+		var v uint64
+		v, err = strconv.ParseUint(valstr, 10, 32)
+		val = uint32(v)
+	case protoreflect.Int64Kind, protoreflect.Sint64Kind, protoreflect.Sfixed64Kind:
+		var v int64
+		v, err = strconv.ParseInt(valstr, 10, 64)
+		val = int64(v)
+	case protoreflect.Uint64Kind, protoreflect.Fixed64Kind:
+		var v uint64
+		v, err = strconv.ParseUint(valstr, 10, 64)
+		val = uint64(v)
+	case protoreflect.FloatKind:
+		var v float64
+		v, err = strconv.ParseFloat(valstr, 32)
+		val = float32(v)
+	case protoreflect.DoubleKind:
+		val, err = strconv.ParseFloat(valstr, 64)
+	case protoreflect.StringKind:
+		val, err = valstr, nil
+	case protoreflect.BytesKind:
+		val, err = []byte(valstr), nil
+	default:
+		err = fmt.Errorf("field '%s' of unsupported type", name)
+	}
+	if err != nil {
+		return err
+	}
+
+	value := protoreflect.ValueOf(val)
+	if fd.IsList() {
+		m.Mutable(fd).List().Append(value)
+	} else {
+		m.Set(fd, value)
 	}
 	return nil
 }
