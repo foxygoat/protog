@@ -473,6 +473,8 @@ func templatePath(rule *pb.HttpRule) string {
 		return rule.GetPost()
 	case rule.GetDelete() != "":
 		return rule.GetDelete()
+	case rule.GetCustom() != nil && rule.GetCustom().GetKind() == "HEAD":
+		return rule.GetCustom().GetPath()
 	}
 	return ""
 }
@@ -489,6 +491,8 @@ func method(rule *pb.HttpRule) string {
 		return http.MethodDelete
 	case rule.GetPatch() != "":
 		return http.MethodPatch
+	case rule.GetCustom() != nil && rule.GetCustom().GetKind() == "HEAD":
+		return http.MethodHead
 	}
 	return ""
 }
