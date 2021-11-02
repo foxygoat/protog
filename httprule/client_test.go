@@ -28,7 +28,7 @@ func TestEchoClient(t *testing.T) {
 	s := newTestServer(`{"response": "Hiya"}`, 200)
 	defer s.Close()
 
-	cc := &ClientConn{HTTPClient: s.Client(), BaseURL: s.URL}
+	cc := NewClientConn(s.URL, WithHTTPClient(s.Client()))
 	req := &internal.HelloRequest{Message: "hallo"}
 	echoClient := internal.NewEchoClient(cc)
 
@@ -44,7 +44,7 @@ func TestEchoClientErr(t *testing.T) {
 	s := newTestServer(`{"response": "Hiya"}`, 200)
 	defer s.Close()
 
-	cc := &ClientConn{HTTPClient: s.Client(), BaseURL: s.URL}
+	cc := NewClientConn(s.URL, WithHTTPClient(s.Client()))
 	req := &internal.HelloRequest{Message: "hallo"}
 	resp := &internal.HelloResponse{}
 	want := &internal.HelloResponse{Response: "Hiya"}
@@ -74,11 +74,28 @@ func TestEchoClientStatusErr(t *testing.T) {
 	ctx := context.Background()
 	s := newTestServer("", http.StatusBadRequest)
 	defer s.Close()
-	cc := &ClientConn{HTTPClient: s.Client(), BaseURL: s.URL}
+	cc := NewClientConn(s.URL, WithHTTPClient(s.Client()))
 	echoClient := internal.NewEchoClient(cc)
 	_, err := echoClient.Hello(ctx, &internal.HelloRequest{Message: ""})
 	require.Error(t, err)
 	require.Equal(t, codes.Internal, status.Code(err))
+}
+
+func TestWithHeader(t *testing.T) {
+	ctx := context.Background()
+	s := newTestServer(`{"response": "Hiya"}`, 200)
+	defer s.Close()
+
+	cc := NewClientConn(s.URL, WithHTTPClient(s.Client()), WithHeader("Hello", "World"))
+	req := &internal.HelloRequest{Message: "hallo"}
+	echoClient := internal.NewEchoClient(cc)
+
+	got, err := echoClient.Hello(ctx, req)
+
+	want := &internal.HelloResponse{Response: "Hiya"}
+	require.NoError(t, err)
+	requireProtoEqual(t, want, got)
+	require.Equal(t, "World", s.request.Header.Get("Hello"))
 }
 
 func TestGetHttpRuleErr(t *testing.T) {
@@ -117,13 +134,22 @@ func TestErrorStatus(t *testing.T) {
 	require.Equal(t, codes.Unknown, status.Code(err))
 }
 
-func newTestServer(body string, statusCode int) *httptest.Server {
-	h := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+type testServer struct {
+	*httptest.Server
+	// request is cloned from the request received by the test handler.
+	// It can be used to test that a client set correct headers, etc.
+	request *http.Request
+}
+
+func newTestServer(body string, statusCode int) *testServer {
+	mux := http.NewServeMux()
+	ts := &testServer{Server: httptest.NewServer(mux)}
+	h := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		w.WriteHeader(statusCode)
 		fmt.Fprintln(w, body)
+		ts.request = req.Clone(context.Background())
 	})
-	mux := http.NewServeMux()
 	p := "/api/echo/hello"
 	mux.HandleFunc(p, h)
-	return httptest.NewServer(mux)
+	return ts
 }
