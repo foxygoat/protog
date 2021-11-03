@@ -20,7 +20,16 @@ import (
 type ClientConn struct {
 	HTTPClient *http.Client
 	BaseURL    string
+
+	// header contains HTTP headers added to every HTTP request made via
+	// this ClientConn.
+	header http.Header
 }
+
+// Option is a function option for customising a httprule.ClientConn via
+// the httprule.NewClientConn() constructor. They are typically created
+// by the With* functions in this package.
+type Option func(*ClientConn)
 
 var (
 	ErrInvalidMethod    = errors.New("invalid gRPC method string")
@@ -29,6 +38,49 @@ var (
 	ErrNotImplemented   = errors.New("not implemented")
 	ErrHttpRuleNotFound = errors.New("no HttpRule")
 )
+
+// NewClientConn creates an httprule.ClientConn for making HTTP requests mapped
+// from gRPC method calls annotated with google.api.http annotations. The
+// baseURL is used as a prefix to the paths specified in annotations and is
+// typically just a scheme and host, however all elements of the baseURL are
+// preserved and the path in the annotation is appended to the path in the
+// baseURL.
+//
+// A zero-value http.Client will be used by the ClientConn for all HTTP
+// requests it makes. An alternate http.Client can be provided as an
+// Option.
+//
+// opts are function options that modify the http.ClientConn and are typically
+// created by the With* functions in this package.
+func NewClientConn(baseURL string, opts ...Option) *ClientConn {
+	cc := &ClientConn{
+		HTTPClient: &http.Client{},
+		BaseURL:    baseURL,
+		header:     http.Header{},
+	}
+	for _, opt := range opts {
+		opt(cc)
+	}
+	return cc
+}
+
+// WithHTTPClient retuens an httprule.Option for setting the HTTP client
+// used by a ClientConn.
+func WithHTTPClient(client *http.Client) Option {
+	return func(cc *ClientConn) {
+		cc.HTTPClient = client
+	}
+}
+
+// WithHeader returns an httprule.Option for setting a header on each HTTP
+// request made by a httprule.ClientConn. The header is added to any that may
+// be specified by a google.api.http annotation on a method. The returned
+// option can be passed to the NewClientConn() constructor.
+func WithHeader(key, value string) Option {
+	return func(cc *ClientConn) {
+		cc.header.Set(key, value)
+	}
+}
 
 func (c *ClientConn) NewStream(ctx context.Context, desc *grpc.StreamDesc, method string, opts ...grpc.CallOption) (grpc.ClientStream, error) {
 	return nil, ErrNotImplemented
@@ -42,6 +94,11 @@ func (c *ClientConn) Invoke(ctx context.Context, method string, args, reply inte
 	req, err := NewHTTPRequest(rule, c.BaseURL, args.(proto.Message))
 	if err != nil {
 		return err
+	}
+	for key, vals := range c.header {
+		for _, v := range vals {
+			req.Header.Add(key, v)
+		}
 	}
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
