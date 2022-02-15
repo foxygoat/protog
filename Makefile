@@ -44,11 +44,13 @@ gen-pb = protoc -o $(1:%.proto=%-protoc.pb) $(1)
 gen-json = reflect fdsf $(1:%.proto=%-protoc.pb) -f json | jq . > $(1:%.proto=%-protoc.json)
 gen-testdata = $(call gen-pb,$(1))$(nl)$(call gen-json,$(1))$(nl)
 
-gen-testdata: tools
+gen-testdata:
 	$(foreach proto,$(wildcard testdata/*.proto),$(call gen-testdata,$(proto)))
+	protosync --dest registry/testdata google/api/annotations.proto
+	protoc --include_imports -I registry/testdata -o registry/testdata/regtest.pb registry/testdata/regtest.proto
 
 check-uptodate: gen-testdata protos
-	test -z "$$(git status --porcelain)"
+	test -z "$$(git status --porcelain)" || { git diff; false; }
 
 CHECK_COVERAGE = awk -F '[ \t%]+' '/^total:/ {print; if ($$3 < $(COVERAGE)) exit 1}'
 FAIL_COVERAGE = { echo '$(COLOUR_RED)FAIL - Coverage below $(COVERAGE)%$(COLOUR_NORMAL)'; exit 1; }
@@ -70,7 +72,7 @@ protos:
 		--go-grpc_out=. --go-grpc_opt=module=foxygo.at/protog \
 		-I httprule/internal \
 		test.proto echo.proto
-	goimports -w .
+	gosimports -w .
 
 .PHONY: protos
 
@@ -92,12 +94,6 @@ COLOUR_WHITE  = $(shell tput setaf 7 2>/dev/null)
 
 help:
 	@awk -F ':.*## ' 'NF == 2 && $$1 ~ /^[A-Za-z0-9%_-]+$$/ { printf "$(COLOUR_WHITE)%-25s$(COLOUR_NORMAL)%s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
-
-tools:
-	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.27.1
-	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.1
-	go install golang.org/x/tools/cmd/goimports@v0.1.5
-	go install github.com/juliaogris/reflect@v0.0.22
 
 $(O):
 	@mkdir -p $@
