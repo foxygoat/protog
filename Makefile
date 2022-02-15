@@ -48,7 +48,7 @@ gen-testdata:
 	$(foreach proto,$(wildcard testdata/*.proto),$(call gen-testdata,$(proto)))
 
 check-uptodate: gen-testdata protos
-	test -z "$$(git status --porcelain)"
+	test -z "$$(git status --porcelain)" || { git diff; false; }
 
 CHECK_COVERAGE = awk -F '[ \t%]+' '/^total:/ {print; if ($$3 < $(COVERAGE)) exit 1}'
 FAIL_COVERAGE = { echo '$(COLOUR_RED)FAIL - Coverage below $(COVERAGE)%$(COLOUR_NORMAL)'; exit 1; }
