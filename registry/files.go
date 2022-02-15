@@ -7,8 +7,10 @@ package registry
 import (
 	"strings"
 
+	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/reflect/protoregistry"
+	"google.golang.org/protobuf/types/descriptorpb"
 	"google.golang.org/protobuf/types/dynamicpb"
 )
 
@@ -16,8 +18,12 @@ type Files struct {
 	protoregistry.Files
 }
 
-func NewFiles(f *protoregistry.Files) *Files {
-	return &Files{Files: *f}
+func NewFiles(fds *descriptorpb.FileDescriptorSet) (*Files, error) {
+	f, err := protodesc.NewFiles(fds)
+	if err != nil {
+		return nil, err
+	}
+	return &Files{Files: *f}, nil
 }
 
 type extMatchFn func(protoreflect.ExtensionDescriptor) bool
@@ -42,29 +48,25 @@ func (f *Files) FindExtensionByName(field protoreflect.FullName) (protoreflect.E
 }
 
 func (f *Files) FindExtensionByNumber(message protoreflect.FullName, field protoreflect.FieldNumber) (protoreflect.ExtensionType, error) {
-	return findExtension(&f.Files, func(ed protoreflect.ExtensionDescriptor) bool {
+	ets := f.walkExtensions(false, func(ed protoreflect.ExtensionDescriptor) bool {
 		return ed.ContainingMessage().FullName() == message && ed.Number() == field
 	})
-}
-
-func (f *Files) GetExtensionsOfMessage(message protoreflect.FullName) []protoreflect.ExtensionType {
-	return walkExtensions(&f.Files, true, func(ed protoreflect.ExtensionDescriptor) bool {
-		return ed.ContainingMessage().FullName() == message
-	})
-}
-
-func findExtension(files *protoregistry.Files, pred extMatchFn) (protoreflect.ExtensionType, error) {
-	ets := walkExtensions(files, false, pred)
 	if len(ets) == 0 {
 		return nil, protoregistry.NotFound
 	}
 	return ets[0], nil
 }
 
-func walkExtensions(files *protoregistry.Files, getAll bool, pred extMatchFn) []protoreflect.ExtensionType {
+func (f *Files) GetExtensionsOfMessage(message protoreflect.FullName) []protoreflect.ExtensionType {
+	return f.walkExtensions(true, func(ed protoreflect.ExtensionDescriptor) bool {
+		return ed.ContainingMessage().FullName() == message
+	})
+}
+
+func (f *Files) walkExtensions(getAll bool, pred extMatchFn) []protoreflect.ExtensionType {
 	var result []protoreflect.ExtensionType
 
-	files.RangeFiles(func(fd protoreflect.FileDescriptor) bool {
+	f.RangeFiles(func(fd protoreflect.FileDescriptor) bool {
 		result = append(result, getExtensions(fd, getAll, pred)...)
 		// continue if we are getting all extensions or have none so far
 		return getAll || len(result) == 0

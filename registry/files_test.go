@@ -6,7 +6,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/reflect/protoregistry"
 	"google.golang.org/protobuf/types/descriptorpb"
@@ -163,7 +162,7 @@ func newFiles(t *testing.T) *Files {
 	fds := descriptorpb.FileDescriptorSet{}
 	err = proto.Unmarshal(b, &fds)
 	require.NoError(t, err)
-	files, err := protodesc.NewFiles(&fds)
+	files, err := NewFiles(&fds)
 	require.NoError(t, err)
-	return NewFiles(files)
+	return files
 }
