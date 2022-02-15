@@ -46,6 +46,8 @@ gen-testdata = $(call gen-pb,$(1))$(nl)$(call gen-json,$(1))$(nl)
 
 gen-testdata:
 	$(foreach proto,$(wildcard testdata/*.proto),$(call gen-testdata,$(proto)))
+	protosync --dest registry/testdata google/api/annotations.proto
+	protoc --include_imports -I registry/testdata -o registry/testdata/regtest.pb registry/testdata/regtest.proto
 
 check-uptodate: gen-testdata protos
 	test -z "$$(git status --porcelain)" || { git diff; false; }
