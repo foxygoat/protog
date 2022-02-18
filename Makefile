@@ -40,11 +40,7 @@ check-coverage: test  ## Check that test coverage meets the required level
 cover: test  ## Show test coverage in your browser
 	go tool cover -html=$(COVERFILE)
 
-gen-testdata:
-	protosync --dest registry/testdata google/api/annotations.proto
-	protoc --include_imports -I registry/testdata -o registry/testdata/regtest.pb registry/testdata/regtest.proto
-
-check-uptodate: gen-testdata protos
+check-uptodate: proto
 	test -z "$$(git status --porcelain)" || { git diff; false; }
 
 CHECK_COVERAGE = awk -F '[ \t%]+' '/^total:/ {print; if ($$3 < $(COVERAGE)) exit 1}'
@@ -61,15 +57,13 @@ lint:  ## Lint go source code
 
 # --- Protos ---------------------------------------------------------------------
 
-protos:
-	protoc \
-		--go_out=. --go_opt=module=foxygo.at/protog  \
-		--go-grpc_out=. --go-grpc_opt=module=foxygo.at/protog \
-		-I httprule/internal \
-		test.proto echo.proto
+proto:
+	protosync --dest proto google/api/annotations.proto
+	protoc -I proto -I registry/testdata --include_imports -o registry/testdata/regtest.pb registry/testdata/regtest.proto
+	protoc -I proto -I httprule/internal --go_out=. --go_opt=module=foxygo.at/protog --go-grpc_out=. --go-grpc_opt=module=foxygo.at/protog test.proto echo.proto
 	gosimports -w .
 
-.PHONY: protos
+.PHONY: proto
 
 # --- Release -------------------------------------------------------------------
 NEXTTAG := $(shell { git tag --list --merged HEAD --sort=-v:refname; echo v0.0.0; } | grep -E "^v?[0-9]+.[0-9]+.[0-9]+$$" | head -n1 | awk -F . '{ print $$1 "." $$2 "." $$3 + 1 }')
