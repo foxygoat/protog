@@ -41,6 +41,7 @@ cover: test  ## Show test coverage in your browser
 	go tool cover -html=$(COVERFILE)
 
 check-uptodate: proto
+	go mod tidy
 	test -z "$$(git status --porcelain)" || { git diff; false; }
 
 CHECK_COVERAGE = awk -F '[ \t%]+' '/^total:/ {print; if ($$3 < $(COVERAGE)) exit 1}'
