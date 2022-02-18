@@ -40,12 +40,7 @@ check-coverage: test  ## Check that test coverage meets the required level
 cover: test  ## Show test coverage in your browser
 	go tool cover -html=$(COVERFILE)
 
-gen-pb = protoc -o $(1:%.proto=%-protoc.pb) $(1)
-gen-json = reflect fdsf $(1:%.proto=%-protoc.pb) -f json | jq . > $(1:%.proto=%-protoc.json)
-gen-testdata = $(call gen-pb,$(1))$(nl)$(call gen-json,$(1))$(nl)
-
 gen-testdata:
-	$(foreach proto,$(wildcard testdata/*.proto),$(call gen-testdata,$(proto)))
 	protosync --dest registry/testdata google/api/annotations.proto
 	protoc --include_imports -I registry/testdata -o registry/testdata/regtest.pb registry/testdata/regtest.proto
 
