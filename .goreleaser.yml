@@ -1,0 +1,11 @@
+dist: out/dist
+builds:
+  - main: ./cmd/pb
+    id: pb
+    binary: pb
+archives:
+  - builds: ['pb']
+    id: all
+  - builds: ['pb']
+    id: pb
+    name_template: 'pb_{{.Version}}_{{.Os}}_{{.Arch}}'

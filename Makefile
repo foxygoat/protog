@@ -2,7 +2,7 @@
 
 # --- Global -------------------------------------------------------------------
 O = out
-COVERAGE = 90
+COVERAGE = 85
 VERSION ?= $(shell git describe --tags --dirty  --always)
 REPO_ROOT = $(shell git rev-parse --show-toplevel)
 
@@ -18,13 +18,13 @@ clean::  ## Remove generated files
 .PHONY: all ci clean
 
 # --- Build --------------------------------------------------------------------
-GO_LDFLAGS = -X main.version=$(VERSION)
+CMDS = ./cmd/pb
 
 build: | $(O)  ## Build reflect binaries
-	go build -o $(O)/protog -ldflags='$(GO_LDFLAGS)' .
+	go build -o $(O) $(CMDS)
 
 install:  ## Build and install binaries in $GOBIN
-	go install -ldflags='$(GO_LDFLAGS)' .
+	go install $(CMDS)
 
 .PHONY: build install
 
@@ -50,16 +50,15 @@ FAIL_COVERAGE = { echo '$(COLOUR_RED)FAIL - Coverage below $(COVERAGE)%$(COLOUR_
 .PHONY: check-coverage check-uptodate cover test
 
 # --- Lint ---------------------------------------------------------------------
-
 lint:  ## Lint go source code
 	golangci-lint run
 
 .PHONY: lint
 
 # --- Protos ---------------------------------------------------------------------
-
 proto:
 	protosync --dest proto google/api/annotations.proto
+	protoc -I cmd/pb/testdata --include_imports -o cmd/pb/testdata/pbtest.pb cmd/pb/testdata/pbtest.proto
 	protoc -I proto -I registry/testdata --include_imports -o registry/testdata/regtest.pb registry/testdata/regtest.proto
 	protoc -I proto -I httprule/internal --go_out=. --go_opt=module=foxygo.at/protog --go-grpc_out=. --go-grpc_opt=module=foxygo.at/protog test.proto echo.proto
 	gosimports -w .
