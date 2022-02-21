@@ -37,7 +37,7 @@ pb translates encoded Protobuf message from one format to another
 type PBConfig struct {
 	Protoset    *registry.Files `short:"P" help:"Protoset of Message being translated" required:""`
 	Out         string          `short:"o" help:"Output file name"`
-	InFormat    string          `short:"I" help:"Input format (json, pb)" enum:"json,pb,j,p," default:""`
+	InFormat    string          `short:"I" help:"Input format (j[son], p[b],t[xt])" enum:"json,pb,txt,j,p,t," default:""`
 	OutFormat   string          `short:"O" help:"Output format (j[son], p[b],t[xt])" enum:"json,pb,txt,j,p,t," default:""`
 	MessageType string          `arg:"" help:"Message type to be translated" required:""`
 	In          string          `arg:"" help:"Message value JSON encoded" optional:""`
