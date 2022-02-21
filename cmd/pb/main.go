@@ -20,9 +20,11 @@ import (
 )
 
 var (
-	version     = "tip"
-	commit      = "HEAD"
-	date        = "now"
+	// version vars set by goreleaser
+	version = "tip"
+	commit  = "HEAD"
+	date    = "now"
+
 	description = `
 pb translates encoded Protobuf message from one format to another
 `
