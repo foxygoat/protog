@@ -67,7 +67,7 @@ func run(cfg PBConfig) error {
 	}
 	unmarshal, err := cfg.unmarshaler()
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot decode %q input: %w", cfg.inFormat(), err)
 	}
 	message := dynamicpb.NewMessage(md)
 	if err := unmarshal(in, message); err != nil {
@@ -106,8 +106,7 @@ func (c *PBConfig) writeOutput(b []byte) error {
 }
 
 func (c *PBConfig) unmarshaler() (unmarshaler, error) {
-	format := getFormat(c.In, c.InFormat)
-	switch format {
+	switch c.inFormat() {
 	case "json":
 		o := protojson.UnmarshalOptions{Resolver: c.Protoset}
 		return o.Unmarshal, nil
@@ -118,7 +117,11 @@ func (c *PBConfig) unmarshaler() (unmarshaler, error) {
 		o := prototext.UnmarshalOptions{Resolver: c.Protoset}
 		return o.Unmarshal, nil
 	}
-	return nil, fmt.Errorf("unknown input format %s", format)
+	return nil, fmt.Errorf("unknown input format %q", c.inFormat())
+}
+
+func (c *PBConfig) inFormat() string {
+	return getFormat(c.In, c.InFormat)
 }
 
 func (c *PBConfig) marshaler() (marshaler, error) {
