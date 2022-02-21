@@ -29,8 +29,8 @@ var (
 pb translates encoded Protobuf message from one format to another
 `
 	cli struct {
-		Version  kong.VersionFlag `help:"Show version."`
-		PBConfig PBConfig         `embed:""`
+		PBConfig
+		Version kong.VersionFlag `help:"Show version."`
 	}
 )
 
@@ -39,6 +39,7 @@ type PBConfig struct {
 	Out         string          `short:"o" help:"Output file name"`
 	InFormat    string          `short:"I" help:"Input format (j[son], p[b],t[xt])" enum:"json,pb,txt,j,p,t," default:""`
 	OutFormat   string          `short:"O" help:"Output format (j[son], p[b],t[xt])" enum:"json,pb,txt,j,p,t," default:""`
+	Zero        bool            `short:"z" help:"Print zero values in JSON output"`
 	MessageType string          `arg:"" help:"Message type to be translated" required:""`
 	In          string          `arg:"" help:"Message value JSON encoded" optional:""`
 }
@@ -49,14 +50,13 @@ func main() {
 		kong.Vars{"version": fmt.Sprintf("%s (%s on %s)", version, commit, date)},
 		kong.TypeMapper(reflect.TypeOf(cli.PBConfig.Protoset), kong.MapperFunc(registryMapper)),
 	)
-	err := run(cli.PBConfig)
-	kctx.FatalIfErrorf(err)
+	kctx.FatalIfErrorf(kctx.Run())
 }
 
 type unmarshaler func([]byte, proto.Message) error
 type marshaler func(proto.Message) ([]byte, error)
 
-func run(cfg PBConfig) error {
+func (cfg *PBConfig) Run() error {
 	md, err := lookupMessage(cfg.Protoset, cfg.MessageType)
 	if err != nil {
 		return err
@@ -82,6 +82,13 @@ func run(cfg PBConfig) error {
 		return err
 	}
 	return cfg.writeOutput(b)
+}
+
+func (c *PBConfig) AfterApply() error {
+	if c.Zero && c.outFormat() != "json" {
+		return fmt.Errorf(`cannot print zero values with %q, only "json"`, c.outFormat())
+	}
+	return nil
 }
 
 func (c *PBConfig) readInput() ([]byte, error) {
@@ -124,11 +131,18 @@ func (c *PBConfig) inFormat() string {
 	return getFormat(c.In, c.InFormat)
 }
 
+func (c *PBConfig) outFormat() string {
+	return getFormat("@"+c.Out, c.OutFormat)
+}
+
 func (c *PBConfig) marshaler() (marshaler, error) {
-	format := getFormat("@"+c.Out, c.OutFormat)
-	switch format {
+	switch c.outFormat() {
 	case "json":
-		o := protojson.MarshalOptions{Resolver: c.Protoset, Multiline: true}
+		o := protojson.MarshalOptions{
+			Resolver:        c.Protoset,
+			Multiline:       true,
+			EmitUnpopulated: c.Zero,
+		}
 		return func(m proto.Message) ([]byte, error) {
 			b, err := o.Marshal(m)
 			if err != nil {
@@ -143,7 +157,7 @@ func (c *PBConfig) marshaler() (marshaler, error) {
 		o := prototext.MarshalOptions{Resolver: c.Protoset, Multiline: true}
 		return o.Marshal, nil
 	}
-	return nil, fmt.Errorf("unknown output format %s", format)
+	return nil, fmt.Errorf("unknown output format %s", c.outFormat())
 }
 
 func getFormat(contentOrFile string, format string) string {

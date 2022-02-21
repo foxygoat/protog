@@ -14,7 +14,7 @@ func TestRunJSON(t *testing.T) {
 	files, err := registryFiles("testdata/pbtest.pb")
 	require.NoError(t, err)
 
-	cfg := PBConfig{
+	cli := PBConfig{
 		Protoset:    files,
 		Out:         filepath.Join(tmpDir, "out.json"),
 		MessageType: "BaseMessage",
@@ -24,12 +24,35 @@ func TestRunJSON(t *testing.T) {
 	formats := []string{"json", "j", ""}
 	for _, format := range formats {
 		t.Run("format-"+format, func(t *testing.T) {
-			cfg.OutFormat = format
-			require.NoError(t, run(cfg))
+			cli.OutFormat = format
+			require.NoError(t, cli.Run())
 			want := `{"f": "F" }`
-			requireJSONFileContent(t, want, cfg.Out)
+			requireJSONFileContent(t, want, cli.Out)
 		})
 	}
+}
+
+func TestRunJSONZero(t *testing.T) {
+	tmpDir := t.TempDir()
+	files, err := registryFiles("testdata/pbtest.pb")
+	require.NoError(t, err)
+
+	cli := PBConfig{
+		Protoset:    files,
+		Out:         filepath.Join(tmpDir, "out.json"),
+		MessageType: "BaseMessage",
+		In:          `{"f": "" }`,
+		Zero:        true,
+		OutFormat:   "json",
+	}
+	require.NoError(t, cli.Run())
+	want := `{"f": "" }`
+	requireJSONFileContent(t, want, cli.Out)
+
+	cli.Zero = false
+	require.NoError(t, cli.Run())
+	want = `{}`
+	requireJSONFileContent(t, want, cli.Out)
 }
 
 func TestRunPrototext(t *testing.T) {
@@ -37,7 +60,7 @@ func TestRunPrototext(t *testing.T) {
 	files, err := registryFiles("testdata/pbtest.pb")
 	require.NoError(t, err)
 
-	cfg := PBConfig{
+	cli := PBConfig{
 		Protoset:    files,
 		Out:         filepath.Join(tmpDir, "out.txt"),
 		MessageType: "BaseMessage",
@@ -46,8 +69,8 @@ func TestRunPrototext(t *testing.T) {
 	formats := []string{"txt", "t", "prototxt"}
 	for _, format := range formats {
 		t.Run("format-"+format, func(t *testing.T) {
-			cfg.OutFormat = format
-			require.NoError(t, run(cfg))
+			cli.OutFormat = format
+			require.NoError(t, cli.Run())
 			want := `f:"F"` + "\n"
 			out := filepath.Join(tmpDir, "out.txt")
 			b, err := os.ReadFile(out)
@@ -64,7 +87,7 @@ func TestRunMessages(t *testing.T) {
 	files, err := registryFiles("testdata/pbtest.pb")
 	require.NoError(t, err)
 
-	cfg := PBConfig{
+	cli := PBConfig{
 		Protoset: files,
 		Out:      filepath.Join(tmpDir, "out.json"),
 		In:       `{"f": "F" }`,
@@ -72,10 +95,10 @@ func TestRunMessages(t *testing.T) {
 	messageTypes := []string{"BaseMessage", "pbtest.BaseMessage", ".pbtest.BaseMessage", "basemessage"}
 	for _, messageType := range messageTypes {
 		t.Run("message-"+messageType, func(t *testing.T) {
-			cfg.MessageType = messageType
-			require.NoError(t, run(cfg))
+			cli.MessageType = messageType
+			require.NoError(t, cli.Run())
 			want := `{"f": "F" }`
-			requireJSONFileContent(t, want, cfg.Out)
+			requireJSONFileContent(t, want, cli.Out)
 		})
 	}
 }
@@ -85,7 +108,7 @@ func TestRunMessageErr(t *testing.T) {
 	files, err := registryFiles("testdata/pbtest.pb")
 	require.NoError(t, err)
 
-	cfg := PBConfig{
+	cli := PBConfig{
 		Protoset: files,
 		Out:      filepath.Join(tmpDir, "out.json"),
 		In:       `{"f": "F" }`,
@@ -93,8 +116,8 @@ func TestRunMessageErr(t *testing.T) {
 	messageTypes := []string{"Message", "..pbtest.BaseMessage"}
 	for _, messageType := range messageTypes {
 		t.Run("message-"+messageType, func(t *testing.T) {
-			cfg.MessageType = messageType
-			require.Error(t, run(cfg))
+			cli.MessageType = messageType
+			require.Error(t, cli.Run())
 		})
 	}
 }
@@ -104,13 +127,13 @@ func TestRunInErr(t *testing.T) {
 	files, err := registryFiles("testdata/pbtest.pb")
 	require.NoError(t, err)
 
-	cfg := PBConfig{
+	cli := PBConfig{
 		Protoset:    files,
 		Out:         filepath.Join(tmpDir, "out.json"),
 		MessageType: "BaseMessage",
 		In:          `{"MISSING": "F" }`,
 	}
-	require.Error(t, run(cfg))
+	require.Error(t, cli.Run())
 }
 
 func requireJSONFileContent(t *testing.T, wantStr string, gotFile string) {
