@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -35,13 +36,14 @@ pb translates encoded Protobuf message from one format to another
 )
 
 type PBConfig struct {
-	Protoset    *registry.Files `short:"P" help:"Protoset of Message being translated" required:""`
-	Out         string          `short:"o" help:"Output file name"`
-	InFormat    string          `short:"I" help:"Input format (j[son], p[b],t[xt])" enum:"json,pb,txt,j,p,t," default:""`
-	OutFormat   string          `short:"O" help:"Output format (j[son], p[b],t[xt])" enum:"json,pb,txt,j,p,t," default:""`
-	Zero        bool            `short:"z" help:"Print zero values in JSON output"`
-	MessageType string          `arg:"" help:"Message type to be translated" required:""`
-	In          string          `arg:"" help:"Message value JSON encoded" optional:""`
+	Protoset     *registry.Files `short:"P" help:"Protoset of Message being translated" xor:"protoset"`
+	Descriptorpb bool            `short:"D" help:"Use descriptorpb as protoset" xor:"protoset"`
+	Out          string          `short:"o" help:"Output file name"`
+	InFormat     string          `short:"I" help:"Input format (j[son], p[b], t[xt])" enum:"json,pb,txt,j,p,t," default:""`
+	OutFormat    string          `short:"O" help:"Output format (j[son], p[b], t[xt])" enum:"json,pb,txt,j,p,t," default:""`
+	Zero         bool            `short:"z" help:"Print zero values in JSON output"`
+	MessageType  string          `arg:"" help:"Message type to be translated" optional:""`
+	In           string          `arg:"" help:"Message value JSON encoded" optional:""`
 }
 
 func main() {
@@ -56,24 +58,46 @@ func main() {
 type unmarshaler func([]byte, proto.Message) error
 type marshaler func(proto.Message) ([]byte, error)
 
-func (cfg *PBConfig) Run() error {
-	md, err := lookupMessage(cfg.Protoset, cfg.MessageType)
+func (c *PBConfig) Run() error {
+	if c.Descriptorpb {
+		c.Protoset = &registry.Files{}
+		err := c.Protoset.RegisterFile(descriptorpb.File_google_protobuf_descriptor_proto)
+		if err != nil {
+			return err
+		}
+		if c.MessageType != "" && c.In == "" {
+			// shuffle down the args and provide default MessageType
+			c.In = c.MessageType
+			c.MessageType = ""
+		}
+		if c.MessageType == "" {
+			c.MessageType = ".google.protobuf.FileDescriptorSet"
+		}
+		if c.In == "" && c.InFormat == "" {
+			c.InFormat = "pb"
+		}
+	}
+	if c.MessageType == "" {
+		return errors.New(`expected "<message-type>"`)
+	}
+
+	md, err := lookupMessage(c.Protoset, c.MessageType)
 	if err != nil {
 		return err
 	}
-	in, err := cfg.readInput()
+	in, err := c.readInput()
 	if err != nil {
 		return err
 	}
-	unmarshal, err := cfg.unmarshaler()
+	unmarshal, err := c.unmarshaler()
 	if err != nil {
-		return fmt.Errorf("cannot decode %q input: %w", cfg.inFormat(), err)
+		return fmt.Errorf("cannot decode %q input: %w", c.inFormat(), err)
 	}
 	message := dynamicpb.NewMessage(md)
 	if err := unmarshal(in, message); err != nil {
 		return err
 	}
-	marshal, err := cfg.marshaler()
+	marshal, err := c.marshaler()
 	if err != nil {
 		return err
 	}
@@ -81,12 +105,15 @@ func (cfg *PBConfig) Run() error {
 	if err != nil {
 		return err
 	}
-	return cfg.writeOutput(b)
+	return c.writeOutput(b)
 }
 
 func (c *PBConfig) AfterApply() error {
 	if c.Zero && c.outFormat() != "json" {
 		return fmt.Errorf(`cannot print zero values with %q, only "json"`, c.outFormat())
+	}
+	if !c.Descriptorpb && c.Protoset == nil {
+		return errors.New(`either "-p/--protoset=PROTOSET" or -D/--descriptorpb required`)
 	}
 	return nil
 }
