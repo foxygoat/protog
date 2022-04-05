@@ -38,6 +38,7 @@ pb translates encoded Protobuf message from one format to another
 type PBConfig struct {
 	Protoset     *registry.Files `short:"P" help:"Protoset of Message being translated" xor:"protoset"`
 	Descriptorpb bool            `short:"D" help:"Use descriptorpb as protoset" xor:"protoset"`
+	Extensions   bool            `short:"E" help:"Decode descriptorpb extensions"`
 	Out          string          `short:"o" help:"Output file name"`
 	InFormat     string          `short:"I" help:"Input format (j[son], p[b], t[xt])" enum:"json,pb,txt,j,p,t," default:""`
 	OutFormat    string          `short:"O" help:"Output format (j[son], p[b], t[xt])" enum:"json,pb,txt,j,p,t," default:""`
@@ -60,13 +61,11 @@ type marshaler func(proto.Message) ([]byte, error)
 
 func (c *PBConfig) Run() error {
 	if c.Descriptorpb {
-		c.Protoset = &registry.Files{}
-		err := c.Protoset.RegisterFile(descriptorpb.File_google_protobuf_descriptor_proto)
-		if err != nil {
-			return err
-		}
 		if c.MessageType != "" && c.In == "" {
 			// shuffle down the args and provide default MessageType
+			// XXX For some reason we cannot do this in AfterApply() - it
+			// resets c.MessageType back to the filename after it completes
+			// and before Run() is called.
 			c.In = c.MessageType
 			c.MessageType = ""
 		}
@@ -81,11 +80,30 @@ func (c *PBConfig) Run() error {
 		return errors.New(`expected "<message-type>"`)
 	}
 
-	md, err := lookupMessage(c.Protoset, c.MessageType)
+	in, err := c.readInput()
 	if err != nil {
 		return err
 	}
-	in, err := c.readInput()
+
+	if c.Descriptorpb {
+		if c.Extensions {
+			fds := descriptorpb.FileDescriptorSet{}
+			if err := proto.Unmarshal(in, &fds); err != nil {
+				return err
+			}
+			if c.Protoset, err = registry.NewFiles(&fds); err != nil {
+				return err
+			}
+		} else {
+			c.Protoset = &registry.Files{}
+			err := c.Protoset.RegisterFile(descriptorpb.File_google_protobuf_descriptor_proto)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	md, err := lookupMessage(c.Protoset, c.MessageType)
 	if err != nil {
 		return err
 	}
