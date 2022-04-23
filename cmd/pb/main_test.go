@@ -153,9 +153,29 @@ func TestWellKnown(t *testing.T) {
 	requireJSONFileContent(t, `"10s"`, cli.Out)
 }
 
+func TestFDSInput(t *testing.T) {
+	tmpDir := t.TempDir()
+	cli := PBConfig{
+		Out:         filepath.Join(tmpDir, "out.json"),
+		MessageType: "FileDescriptorSet",
+		In:          "@testdata/options.pb",
+	}
+	require.NoError(t, cli.Run())
+	requireJSONFilesEqual(t, "testdata/golden/TestFDSInput.json", cli.Out)
+}
+
 func requireJSONFileContent(t *testing.T, wantStr string, gotFile string) {
 	t.Helper()
 	b, err := os.ReadFile(gotFile)
 	require.NoError(t, err)
 	require.JSONEq(t, wantStr, string(b))
+}
+
+func requireJSONFilesEqual(t *testing.T, wantFile string, gotFile string) {
+	t.Helper()
+	got, err := os.ReadFile(gotFile)
+	require.NoError(t, err)
+	want, err := os.ReadFile(wantFile)
+	require.NoError(t, err)
+	require.JSONEq(t, string(want), string(got))
 }

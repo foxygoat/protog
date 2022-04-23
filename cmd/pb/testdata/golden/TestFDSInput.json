@@ -1,0 +1,38 @@
+{
+  "file": [
+    {
+      "name": "options.proto",
+      "dependency": [
+        "google/protobuf/descriptor.proto"
+      ],
+      "messageType": [
+        {
+          "name": "M1",
+          "field": [
+            {
+              "name": "password",
+              "number": 1,
+              "label": "LABEL_OPTIONAL",
+              "type": "TYPE_STRING",
+              "jsonName": "password",
+              "options": {
+                "[redacted]": true
+              }
+            }
+          ]
+        }
+      ],
+      "extension": [
+        {
+          "name": "redacted",
+          "number": 50000,
+          "label": "LABEL_OPTIONAL",
+          "type": "TYPE_BOOL",
+          "extendee": ".google.protobuf.FieldOptions",
+          "jsonName": "redacted"
+        }
+      ],
+      "syntax": "proto3"
+    }
+  ]
+}

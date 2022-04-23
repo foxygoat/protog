@@ -59,6 +59,7 @@ lint:  ## Lint go source code
 proto:
 	protosync --dest proto google/api/annotations.proto
 	protoc -I cmd/pb/testdata --include_imports -o cmd/pb/testdata/pbtest.pb cmd/pb/testdata/pbtest.proto
+	protoc -I cmd/pb/testdata -o cmd/pb/testdata/options.pb cmd/pb/testdata/options.proto
 	protoc -I proto -I registry/testdata --include_imports -o registry/testdata/regtest.pb registry/testdata/regtest.proto
 	protoc -I proto -I httprule/internal --go_out=. --go_opt=module=foxygo.at/protog --go-grpc_out=. --go-grpc_opt=module=foxygo.at/protog test.proto echo.proto
 	gosimports -w .

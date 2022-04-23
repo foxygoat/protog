@@ -94,6 +94,17 @@ func (c *PBConfig) Run() error {
 	if err := unmarshal(in, message); err != nil {
 		return err
 	}
+	if fds, ok := message.(*descriptorpb.FileDescriptorSet); ok {
+		if err := registry.AddDynamicTypes(c.types, fds); err != nil {
+			return err
+		}
+		// Unmarshal again with the input in the resolver registry so
+		// that any exensions defined and used in the input are
+		// unmarshaled properly.
+		if err := unmarshal(in, message); err != nil {
+			return err
+		}
+	}
 	marshal, err := c.marshaler()
 	if err != nil {
 		return err
