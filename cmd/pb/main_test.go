@@ -7,15 +7,26 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/descriptorpb"
 )
+
+func newFDS(t *testing.T, filename string) *descriptorpb.FileDescriptorSet {
+	t.Helper()
+	b, err := os.ReadFile(filename)
+	require.NoError(t, err)
+	fds := descriptorpb.FileDescriptorSet{}
+	err = proto.Unmarshal(b, &fds)
+	require.NoError(t, err)
+	return &fds
+}
 
 func TestRunJSON(t *testing.T) {
 	tmpDir := t.TempDir()
-	files, err := registryFiles("testdata/pbtest.pb")
-	require.NoError(t, err)
+	fds := newFDS(t, "testdata/pbtest.pb")
 
 	cli := PBConfig{
-		Protoset:    files,
+		Protoset:    fds,
 		Out:         filepath.Join(tmpDir, "out.json"),
 		MessageType: "BaseMessage",
 		In:          `{"f": "F" }`,
@@ -34,11 +45,10 @@ func TestRunJSON(t *testing.T) {
 
 func TestRunJSONZero(t *testing.T) {
 	tmpDir := t.TempDir()
-	files, err := registryFiles("testdata/pbtest.pb")
-	require.NoError(t, err)
+	fds := newFDS(t, "testdata/pbtest.pb")
 
 	cli := PBConfig{
-		Protoset:    files,
+		Protoset:    fds,
 		Out:         filepath.Join(tmpDir, "out.json"),
 		MessageType: "BaseMessage",
 		In:          `{"f": "" }`,
@@ -57,11 +67,10 @@ func TestRunJSONZero(t *testing.T) {
 
 func TestRunPrototext(t *testing.T) {
 	tmpDir := t.TempDir()
-	files, err := registryFiles("testdata/pbtest.pb")
-	require.NoError(t, err)
+	fds := newFDS(t, "testdata/pbtest.pb")
 
 	cli := PBConfig{
-		Protoset:    files,
+		Protoset:    fds,
 		Out:         filepath.Join(tmpDir, "out.txt"),
 		MessageType: "BaseMessage",
 		In:          `{"f": "F" }`,
@@ -84,11 +93,10 @@ func TestRunPrototext(t *testing.T) {
 
 func TestRunMessages(t *testing.T) {
 	tmpDir := t.TempDir()
-	files, err := registryFiles("testdata/pbtest.pb")
-	require.NoError(t, err)
+	fds := newFDS(t, "testdata/pbtest.pb")
 
 	cli := PBConfig{
-		Protoset: files,
+		Protoset: fds,
 		Out:      filepath.Join(tmpDir, "out.json"),
 		In:       `{"f": "F" }`,
 	}
@@ -105,11 +113,10 @@ func TestRunMessages(t *testing.T) {
 
 func TestRunMessageErr(t *testing.T) {
 	tmpDir := t.TempDir()
-	files, err := registryFiles("testdata/pbtest.pb")
-	require.NoError(t, err)
+	fds := newFDS(t, "testdata/pbtest.pb")
 
 	cli := PBConfig{
-		Protoset: files,
+		Protoset: fds,
 		Out:      filepath.Join(tmpDir, "out.json"),
 		In:       `{"f": "F" }`,
 	}
@@ -124,11 +131,10 @@ func TestRunMessageErr(t *testing.T) {
 
 func TestRunInErr(t *testing.T) {
 	tmpDir := t.TempDir()
-	files, err := registryFiles("testdata/pbtest.pb")
-	require.NoError(t, err)
+	fds := newFDS(t, "testdata/pbtest.pb")
 
 	cli := PBConfig{
-		Protoset:    files,
+		Protoset:    fds,
 		Out:         filepath.Join(tmpDir, "out.json"),
 		MessageType: "BaseMessage",
 		In:          `{"MISSING": "F" }`,
@@ -136,9 +142,40 @@ func TestRunInErr(t *testing.T) {
 	require.Error(t, cli.Run())
 }
 
+func TestWellKnown(t *testing.T) {
+	tmpDir := t.TempDir()
+	cli := PBConfig{
+		Out:         filepath.Join(tmpDir, "out.json"),
+		MessageType: "Duration",
+		In:          `"10s"`,
+	}
+	require.NoError(t, cli.Run())
+	requireJSONFileContent(t, `"10s"`, cli.Out)
+}
+
+func TestFDSInput(t *testing.T) {
+	tmpDir := t.TempDir()
+	cli := PBConfig{
+		Out:         filepath.Join(tmpDir, "out.json"),
+		MessageType: "FileDescriptorSet",
+		In:          "@testdata/options.pb",
+	}
+	require.NoError(t, cli.Run())
+	requireJSONFilesEqual(t, "testdata/golden/TestFDSInput.json", cli.Out)
+}
+
 func requireJSONFileContent(t *testing.T, wantStr string, gotFile string) {
 	t.Helper()
 	b, err := os.ReadFile(gotFile)
 	require.NoError(t, err)
 	require.JSONEq(t, wantStr, string(b))
+}
+
+func requireJSONFilesEqual(t *testing.T, wantFile string, gotFile string) {
+	t.Helper()
+	got, err := os.ReadFile(gotFile)
+	require.NoError(t, err)
+	want, err := os.ReadFile(wantFile)
+	require.NoError(t, err)
+	require.JSONEq(t, string(want), string(got))
 }
