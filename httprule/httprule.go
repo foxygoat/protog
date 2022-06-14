@@ -57,6 +57,8 @@ func ParseProtoResponse(rule *pb.HttpRule, resp *http.Response, target proto.Mes
 	return nil
 }
 
+var protoJSONUnmarshaller = protojson.UnmarshalOptions{DiscardUnknown: true}
+
 func parseResponseBody(rule *pb.HttpRule, body io.Reader, target proto.Message) error {
 	b, err := io.ReadAll(body)
 	if err != nil {
@@ -74,7 +76,7 @@ func parseResponseBody(rule *pb.HttpRule, body io.Reader, target proto.Message) 
 		}
 	}
 
-	if err := protojson.Unmarshal(b, target); err != nil {
+	if err := protoJSONUnmarshaller.Unmarshal(b, target); err != nil {
 		return fmt.Errorf("protojson unmarshal: %w", err)
 	}
 
