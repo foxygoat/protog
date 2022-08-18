@@ -18,7 +18,7 @@ clean::  ## Remove generated files
 .PHONY: all ci clean
 
 # --- Build --------------------------------------------------------------------
-CMDS = ./cmd/pb
+CMDS = ./cmd/pb ./cmd/protog
 
 build: | $(O)  ## Build reflect binaries
 	go build -o $(O) $(CMDS)
