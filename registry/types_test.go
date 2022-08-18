@@ -28,13 +28,13 @@ func TestAddDynamicTypes(t *testing.T) {
 
 	// regtest.pb includes descriptor.proto, annotations.proto, http.proto and empty.proto
 	// regtest: 3 messages, 0 enums, 4 extensions
-	// descriptor.proto: 27 messages, 6 enums, 0 extensions
+	// descriptor.proto: 27 messages, 7 enums, 0 extensions
 	// annotations.proto: 0 messages, 0 enums, 1 extension
 	// http.proto: 3 messages, 0 enums, 0 extensions
 	// empty.proto: 1 message, 0 enums, 0 extensions
-	// total: 34 messages, 6 enums, 5 extensions
+	// total: 34 messages, 7 enums, 5 extensions
 	require.Equal(t, 34, types.NumMessages())
-	require.Equal(t, 6, types.NumEnums())
+	require.Equal(t, 7, types.NumEnums())
 	require.Equal(t, 5, types.NumExtensions())
 
 	// descriptorpb.FileDescriptorSet should be dynamic as we have only loaded

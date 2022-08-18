@@ -42,7 +42,7 @@ cover: test  ## Show test coverage in your browser
 
 check-uptodate: proto
 	go mod tidy
-	test -z "$$(git status --porcelain)" || { git diff; false; }
+	test -z "$$(git status --porcelain | grep '^[ ?]')" || { git diff; false; }
 
 CHECK_COVERAGE = awk -F '[ \t%]+' '/^total:/ {print; if ($$3 < $(COVERAGE)) exit 1}'
 FAIL_COVERAGE = { echo '$(COLOUR_RED)FAIL - Coverage below $(COVERAGE)%$(COLOUR_NORMAL)'; exit 1; }
