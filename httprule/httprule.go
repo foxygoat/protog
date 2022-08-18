@@ -4,11 +4,11 @@
 // service have their HTTP mappings specified via `google.api.http`
 // method options, e.g.:
 //
-// service HelloService {
-//     rpc Hello (HelloRequest) returns (HelloResponse) {
-//         option (google.api.http) = { post:"/api/hello" body:"*" };
-//     };
-// };
+//	service HelloService {
+//	    rpc Hello (HelloRequest) returns (HelloResponse) {
+//	        option (google.api.http) = { post:"/api/hello" body:"*" };
+//	    };
+//	};
 //
 // HttpRule proto:   https://github.com/googleapis/googleapis/blob/master/google/api/http.proto
 // HttpRule codegen: https://pkg.go.dev/google.golang.org/genproto/googleapis/api/annotations
@@ -351,11 +351,11 @@ func jsonBody(bodyField string, msg proto.Message, skip map[string]bool) (io.Rea
 // interpolate returns a path from a templated path and a proto message
 // whose values are substituted in the path template. For example:
 //
-//    templatePath:              "/v1/messages/{message_id}"
-//    proto message definition:  message M {  string message_id = 1; }
-//    proto message value:       { message_id: 123 }
+//	templatePath:              "/v1/messages/{message_id}"
+//	proto message definition:  message M {  string message_id = 1; }
+//	proto message value:       { message_id: 123 }
 //
-//    => result path:            "/v1/messages/123"
+//	=> result path:            "/v1/messages/123"
 //
 // Referenced message fields must have primitive types; they cannot not
 // repeated or message types. See:
@@ -403,8 +403,8 @@ func interpolate(templ string, msg proto.Message, skipKeys map[string]bool) (str
 
 // urlRawQuery converts a proto message into url.Values.
 //
-//  {"a": "A", "b": {"nested": "🐣"}, "SLICE": [1, 2]}}
-//       => ?a=A&b.nested=🐣&SLICE=1&SLICE=2
+//	{"a": "A", "b": {"nested": "🐣"}, "SLICE": [1, 2]}}
+//	     => ?a=A&b.nested=🐣&SLICE=1&SLICE=2
 //
 // TODO: Investigate zero value encoding for optional and default types.
 func urlRawQuery(bodyRule string, m proto.Message, skip map[string]bool) (string, error) {
